@@ -11,23 +11,23 @@ from torch.utils.data import DataLoader
 
 # My Libraries
 from src.loadConfig import loadConfig, log_Level
-from src.dataset import HALDataset, JORDataset
-from src.loss import HALCriterion, JORCriterion
+from src.dataset import HLoDataset, PReDataset
+from src.loss import HLoCriterion, PReCriterion
 from utils.tools import save_sample, save_model
 
-def HALNet_train(model, optimizer, device="cuda", epoch=-1):
+def HLo_train(model, optimizer, device="cuda", epoch=-1):
     config = loadConfig()
 
-    train_data = HALDataset(config.train_dir)
+    train_data = HLoDataset(config.train_dir)
     train_loader = DataLoader(train_data, batch_size=config.batch_size, drop_last=True, shuffle=True)
     
-    val_data = HALDataset(config.val_dir)
+    val_data = HLoDataset(config.val_dir)
     val_loader = DataLoader(val_data, batch_size=config.batch_size)
 
     sample_iter = val_data.create_iterator()
     
     # Initialize the loss function
-    L =  HALCriterion()
+    L =  HLoCriterion()
     start = time.time()
 
     # Initialize the logger
@@ -56,8 +56,8 @@ def HALNet_train(model, optimizer, device="cuda", epoch=-1):
             heatmap = data['w'].to(device)
 
             # Get output and calculate loss
-            output, interm = model(image)
-            loss = L(output, heatmap, interm)
+            output = model(image)
+            loss = L(output, heatmap)
 
             # backward for generator
             loss.backward()
@@ -112,19 +112,19 @@ def HALNet_train(model, optimizer, device="cuda", epoch=-1):
         if (device != torch.device('cpu')):
             torch.cuda.empty_cache() 
 
-def JORNet_train(model, optimizer, device="cuda", epoch=-1):
+def PRe_train(model, optimizer, device="cuda", epoch=-1):
     config = loadConfig()
 
-    train_data = JORDataset(config.train_dir)
+    train_data = PReDataset(config.train_dir)
     train_loader = DataLoader(train_data, batch_size=config.batch_size, drop_last=True, shuffle=True)
     
-    val_data = JORDataset(config.val_dir)
+    val_data = PReDataset(config.val_dir)
     val_loader = DataLoader(val_data, batch_size=config.batch_size)
 
     sample_iter = val_data.create_iterator()
     
     # Initialize the loss function
-    L =  JORCriterion()
+    L =  PReCriterion()
     start = time.time()
 
     # Initialize the logger
@@ -154,8 +154,8 @@ def JORNet_train(model, optimizer, device="cuda", epoch=-1):
             pos = data['pos'].to(device)
 
             # Get output and calculate loss
-            output, interm = model(image)
-            loss, pos_loss = L(output[0], interm, output[1], heatmap, pos)
+            output= model(image)
+            loss, pos_loss = L(output[0], output[1], heatmap, pos)
 
             # backward for generator
             loss.backward()

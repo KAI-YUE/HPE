@@ -11,10 +11,10 @@ import torchvision.transforms.functional as TF
 
 # My Libraries
 
-class HALDataset(Dataset):
+class HLoDataset(Dataset):
     def __init__(self, data_dir):
         """
-        Constructor of the Dataset class for HALNet.
+        Constructor of the Dataset class for HolNet.
         -------------------------------------------------
         Args
             data_dir :    The directory of the input data.
@@ -41,8 +41,8 @@ class HALDataset(Dataset):
         Img = torch.from_numpy(Img).to(torch.float32)
         Img = (Img - self.mean)/self.std
 
-        wrist = a_set["W_ori"]
-        wrist = torch.from_numpy(wrist.astype('float32'))
+        wrist = cv2.resize(a_set["W_ori"].astype('float32'), (Img.shape[2], Img.shape[1]))
+        wrist = torch.from_numpy(wrist)
         wrist = wrist.view(-1, wrist.shape[0], wrist.shape[1])
 
         return dict(img=Img, w=wrist)
@@ -58,10 +58,10 @@ class HALDataset(Dataset):
             for item in sample_loader:
                 yield item
 
-class JORDataset(Dataset):
+class PReDataset(Dataset):
     def __init__(self, data_dir):
         """
-        Constructor of the Dataset class for JORNet.
+        Constructor of the Dataset class for PReNet.
         -------------------------------------------------
         Args
             data_dir :    The directory of the input data.

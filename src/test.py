@@ -14,10 +14,10 @@ from src.loadConfig import loadConfig
 from utils.heatmap import Heatmap
 from utils.hand_region import ROI_Hand
 from utils.plot_pos import plot_joint
-from src.loss import HALCriterion, JORCriterion
+from src.loss import HLoCriterion, PReCriterion
 from utils.tools import *
 
-def HALNet_test(model, output_dir, device="cuda", mode=0):
+def HLo_test(model, output_dir, device="cuda", mode=0):
     """
     Test the hand localization model.
     -----------------------------------------------
@@ -72,7 +72,7 @@ def HALNet_test(model, output_dir, device="cuda", mode=0):
     elif mode == 1:
         
         already_sampled = 0
-        L = HALCriterion()
+        L = HLoCriterion()
 
         for root, dirs, files in os.walk(config.test_dir):
 
@@ -113,7 +113,7 @@ def HALNet_test(model, output_dir, device="cuda", mode=0):
                         break
 
 
-def JORNet_test(model, output_dir, device="cuda"):
+def PRe_test(model, output_dir, device="cuda"):
     """
     Test the joint regression model.
     -----------------------------------------------
@@ -125,7 +125,7 @@ def JORNet_test(model, output_dir, device="cuda"):
     config = loadConfig()
         
     already_sampled = 0
-    L = JORCriterion()
+    L = PReCriterion()
 
     # Plot rows x cols to show results
     plot_rows = 4

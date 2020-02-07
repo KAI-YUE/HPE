@@ -9,20 +9,19 @@ import torch.optim as optim
 
 # My Libraries
 from src.loadConfig import loadConfig
-from src.networks import HALNet, JORNet
-from src.train import HALNet_train, JORNet_train
-from src.test import HALNet_test, JORNet_test, Synth_test
-from utils.tools import load_resnet_weights
+from src.networks import HLoNet, PReNet, init_weights
+from src.train import HLo_train, PRe_train
+from src.test import HLo_test, PRe_test
 
 def main(mode=None, model_path=None):
     """
     mode to select
-    0: train HALNet from scratch 
-    1: train JORNet from scratch
-    2: train HALNet from checkpoint
-    3: train JORNet from checkpoint
-    4: test HALNet
-    5: test JORNet
+    0: train HLoNet from scratch 
+    1: train PReNet from scratch
+    2: train HLoNet from checkpoint
+    3: train PReNet from checkpoint
+    4: test HLoNet
+    5: test PReNet
     6: test the joint model on synthHands dataset
     7: test the joint model on EgoDexter dataset
     """
@@ -39,9 +38,9 @@ def main(mode=None, model_path=None):
 
     if (mode == 0 or mode == 1):
 
-        # Initialize the HALNet
-        model = HALNet() if mode == 0 else JORNet()
-        load_resnet_weights(config.resnet50_dir, model)
+        # Initialize the HLoNet
+        model = HLoNet() if mode == 0 else PReNet()
+        model.apply(init_weights)
         model.to(device)
 
         # Initialize the optimizer 
@@ -52,9 +51,9 @@ def main(mode=None, model_path=None):
         )
 
         if mode == 0:
-            HALNet_train(model, optimizer, device)
+            HLo_train(model, optimizer, device)
         else:
-            JORNet_train(model, optimizer, device)
+            PRe_train(model, optimizer, device)
 
     elif (mode < 6):
         state_dict = torch.load(model_path[0], map_location=device)
@@ -63,7 +62,7 @@ def main(mode=None, model_path=None):
         if (mode == 2 or mode == 3):
 
             # Initialize the model and optimizer
-            model = HALNet() if mode == 2 else JORNet()
+            model = HLoNet() if mode == 2 else PReNet()
             model.to(device)
             optimizer = optim.Adam(model.parameters())
             
@@ -72,35 +71,35 @@ def main(mode=None, model_path=None):
             optimizer.load_state_dict(state_dict['optimizer'])
 
             if mode == 2:
-                HALNet_train(model, optimizer, device, state_dict['epoch'])
+                HLo_train(model, optimizer, device, state_dict['epoch'])
             else:
-                JORNet_train(model, optimizer, device, state_dict['epoch'])       
+                PRe_train(model, optimizer, device, state_dict['epoch'])       
         
         elif (mode == 4 or 5):
-            model = HALNet() if mode == 4 else JORNet()
+            model = HLoNet() if mode == 4 else PReNet()
             model.to(device)
 
             model.load_state_dict(state_dict['model'])
 
             if mode == 4: 
-                HALNet_test(model, config.test_output_dir, device=device, mode=0)
+                HLo_test(model, config.test_output_dir, device=device, mode=0)
             elif mode == 5:
-                JORNet_test(model, config.test_output_dir, device=device)
+                PRe_test(model, config.test_output_dir, device=device)
 
     else:
         Hal_dict = torch.load(model_path[0], map_location=device)
         Jor_dict = torch.load(model_path[1], map_location=device)
 
-        Hal = HALNet()
-        Hal.load_state_dict(Hal_dict['model'])
-        Hal.to(device)
+        HLo = HLoNet()
+        HLo.load_state_dict(Hal_dict['model'])
+        HLo.to(device)
 
-        Jor = JORNet()
-        Jor.load_state_dict(Jor_dict['model'])
-        Jor.to(device)
+        PRe = PReNet()
+        PRe.load_state_dict(Jor_dict['model'])
+        PRe.to(device)
 
         if mode == 6 :
-            Synth_test(Hal, Jor, config.val_dir, config.test_output_dir)
+            Synth_test(HLo, PRe, config.val_dir, config.test_output_dir)
             
 
 if __name__ == '__main__':
