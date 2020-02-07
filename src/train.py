@@ -1,0 +1,202 @@
+﻿# Python Libraries
+import os
+import time
+import logging
+
+# Pytorch Libraries
+import torch
+import torch.nn as nn
+import torch.optim as optim
+from torch.utils.data import DataLoader
+
+# My Libraries
+from src.loadConfig import loadConfig, log_Level
+from src.dataset import HALDataset, JORDataset
+from src.loss import HALCriterion, JORCriterion
+from utils.tools import save_sample, save_model
+
+def HALNet_train(model, optimizer, device="cuda", epoch=-1):
+    config = loadConfig()
+
+    train_data = HALDataset(config.train_dir)
+    train_loader = DataLoader(train_data, batch_size=config.batch_size, drop_last=True, shuffle=True)
+    
+    val_data = HALDataset(config.val_dir)
+    val_loader = DataLoader(val_data, batch_size=config.batch_size)
+
+    sample_iter = val_data.create_iterator()
+    
+    # Initialize the loss function
+    L =  HALCriterion()
+    start = time.time()
+
+    # Initialize the logger
+    Level = log_Level[config.log_level]
+    logger = logging.getLogger(__name__)
+    logger.setLevel(Level)
+    
+    fh = logging.FileHandler(config.log_file)
+    fh.setLevel(Level)
+    sh = logging.StreamHandler()
+    sh.setLevel(Level)
+
+    logger.addHandler(fh)
+    logger.addHandler(sh)
+    logger.info("-"*80)
+
+    
+    while (epoch < config.max_epoch):
+        epoch += 1
+        iteration = 0
+        for _, data in enumerate(train_loader, 0):
+            
+            optimizer.zero_grad()
+            
+            image = data['img'].to(device)
+            heatmap = data['w'].to(device)
+
+            # Get output and calculate loss
+            output, interm = model(image)
+            loss = L(output, heatmap, interm)
+
+            # backward for generator
+            loss.backward()
+            optimizer.step()
+            
+            # update the log
+            if (config.log_interval and iteration % config.log_interval == 0):
+                logger.info("epoch {} iter {} loss {:.2f}".format(epoch, iteration, loss))
+            
+            iteration += 1
+
+            # if (iteration > 5):
+            #     break
+        
+        # save the model
+        if (config.save_epoch and iteration % config.save_epoch == 0):
+            save_model(os.path.join(config.model_dir, 'HALNet_epoch{}.pth'.format(epoch)), model, optimizer, epoch)
+
+        # sample and save the prediction
+        if(config.sample_epoch and epoch % config.sample_epoch == 0):
+            
+            model.eval()
+            with torch.no_grad():
+
+                image = data['img'].to(device)
+                heatmap = data['w'].to(device)
+                output, _ = model(image)
+
+                save_sample(image, heatmap, output, epoch)
+
+        # validate the model
+        if(config.val_epoch and epoch % config.val_epoch == 0):
+            
+            model.eval()
+            logger.info("="*80)
+            with torch.no_grad():
+                for i, data in enumerate(val_loader, 0):
+                    image = data['img'].to(device)
+                    heatmap = data['w'].to(device)
+                    output, interm = model(image)
+
+                    loss = L(output, heatmap, interm)
+                    logger.info("val loss {}".format(loss))
+
+                    if (i > config.sample_size):
+                        break
+            
+        print('-'*80 + '\n{:.2f} h has elapsed'.format((time.time()-start)/3600))
+        
+        model.train()
+        # Clear the cache after a epoch
+        if (device != torch.device('cpu')):
+            torch.cuda.empty_cache() 
+
+def JORNet_train(model, optimizer, device="cuda", epoch=-1):
+    config = loadConfig()
+
+    train_data = JORDataset(config.train_dir)
+    train_loader = DataLoader(train_data, batch_size=config.batch_size, drop_last=True, shuffle=True)
+    
+    val_data = JORDataset(config.val_dir)
+    val_loader = DataLoader(val_data, batch_size=config.batch_size)
+
+    sample_iter = val_data.create_iterator()
+    
+    # Initialize the loss function
+    L =  JORCriterion()
+    start = time.time()
+
+    # Initialize the logger
+    Level = log_Level[config.log_level]
+    logger = logging.getLogger(__name__)
+    logger.setLevel(Level)
+    
+    fh = logging.FileHandler(config.log_file)
+    fh.setLevel(Level)
+    sh = logging.StreamHandler()
+    sh.setLevel(Level)
+
+    logger.addHandler(fh)
+    logger.addHandler(sh)
+    logger.info("-"*80)
+
+    
+    while (epoch < config.max_epoch):
+        epoch += 1
+        iteration = 0
+        for _, data in enumerate(train_loader, 0):
+            
+            optimizer.zero_grad()
+            
+            image = data['img'].to(device)
+            heatmap = data['hm'].to(device)
+            pos = data['pos'].to(device)
+
+            # Get output and calculate loss
+            output, interm = model(image)
+            loss, pos_loss = L(output[0], interm, output[1], heatmap, pos)
+
+            # backward for generator
+            loss.backward()
+            optimizer.step()
+            
+            # update the log
+            if (config.log_interval and iteration % config.log_interval == 0):
+                logger.info("epoch {} iter {} loss {:.2f} pos_loss {:.2f}".format(epoch, iteration, loss, pos_loss))
+            
+            iteration += 1
+
+            # if (iteration > 5):
+            #     break
+        
+        # save the model
+        if (config.save_epoch and iteration % config.save_epoch == 0):
+            save_model(os.path.join(config.model_dir, 'JORNet_epoch{}.pth'.format(epoch)), model, optimizer, epoch)
+
+        # validate the model
+        if(config.val_epoch and epoch % config.val_epoch == 0):
+            
+            model.eval()
+            logger.info("="*80)
+            with torch.no_grad():
+                for i, data in enumerate(val_loader, 0):
+                    
+                    image = data['img'].to(device)
+                    heatmap = data['hm'].to(device)
+                    pos = data['pos'].to(device)
+
+                    output, interm = model(image)
+
+                    loss = L(output[0], interm, output[1], heatmap, pos)
+                    logger.info("val loss {}".format(loss))
+
+                    if (i > config.sample_size):
+                        break
+            
+        print('-'*80 + '\n{:.2f} h has elapsed'.format((time.time()-start)/3600))
+        
+        model.train()
+        # Clear the cache after a epoch
+        if (device != torch.device('cpu')):
+            torch.cuda.empty_cache() 

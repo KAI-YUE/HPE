@@ -1,0 +1,34 @@
+# Byte-compiled / optimized / DLL files
+__pycache__/
+
+# Log file
+log*
+
+# Environments
+.env
+.venv
+env.bak/
+venv.bak/
+archive/
+.vscode/
+venv/
+
+# Spyder project settings
+.spyderproject
+.spyproject
+
+# model
+checkpoints/
+
+# docs
+test_data.json
+samples*.json
+*.pyc
+log/
+config.json
+
+# samples
+val_samples/
+test_samples/
+*.jpg
+*.png
