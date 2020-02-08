@@ -8,6 +8,7 @@ import matplotlib.pyplot as plt
 
 # Pytorch Libraries
 import torch
+from torch.utils.data import DataLoader
 
 # My Libraries
 from src.loadConfig import loadConfig
@@ -15,6 +16,7 @@ from utils.heatmap import Heatmap
 from utils.hand_region import ROI_Hand
 from utils.plot_pos import plot_joint
 from src.loss import HLoCriterion, PReCriterion
+from src.dataset import HLoDataset, PReDataset
 from utils.tools import *
 
 def HLo_test(model, output_dir, device="cuda", mode=0):
@@ -23,7 +25,7 @@ def HLo_test(model, output_dir, device="cuda", mode=0):
     -----------------------------------------------
     Args:
         output_dir,    the directory of the output results
-        mode,          0: test on the real word data of EgoDexter (without quantitative loss)
+        mode,          0: test on the EgoDexter (without quantitative loss)
                        1: test on the synthHands 
     """
     alpha = 0.6
@@ -286,7 +288,6 @@ def Synth_test(Hal, Jor, input_dir, output_dir, device="cuda"):
 
                     pos_3d = result[1].cpu().detach().squeeze().numpy()
                     pos_3d += np.array(x_0, y_0, d)
-                    pos_2d = project2plane(pos_3d)
 
                     # plot the original 2-D links
                     axs[1, 1].set_axis_off()

@@ -41,7 +41,7 @@ class HLoDataset(Dataset):
         Img = torch.from_numpy(Img).to(torch.float32)
         Img = (Img - self.mean)/self.std
 
-        wrist = cv2.resize(a_set["W_ori"].astype('float32'), (Img.shape[2], Img.shape[1]))
+        wrist = cv2.resize(a_set["W_hm"].astype('float32'), (Img.shape[2], Img.shape[1]))
         wrist = torch.from_numpy(wrist)
         wrist = wrist.view(-1, wrist.shape[0], wrist.shape[1])
 
@@ -67,7 +67,6 @@ class PReDataset(Dataset):
             data_dir :    The directory of the input data.
         """
         self.ImageList = []
-        self.hm_size = [64, 64]
 
         for root, dirs, files in os.walk(data_dir):
             if (files != []):
@@ -85,7 +84,8 @@ class PReDataset(Dataset):
         with open(self.ImageList[idx], 'rb') as fp:
             a_set = pickle.load(fp) 
 
-        Img = a_set["hand"].transpose((2, 0, 1))
+        ROI = a_set["ROI"]
+        Img = a_set["img"][ROI[0]:ROI[1], ROI[2]:ROI[3]].transpose((2, 0, 1))
         Img = torch.from_numpy(Img.astype('float32'))
         Img = (Img - self.mean)/self.std
         

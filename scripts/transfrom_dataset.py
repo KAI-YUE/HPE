@@ -30,7 +30,7 @@ Part_Namelist = ["W",
 "L0", "L1", "L2", "L3"]
 
 
-def trans_for_HALNet(root_dir, dst_dir):
+def trans_for_HLoNet(root_dir, dst_dir):
     for root, dirs, files in os.walk(root_dir):
         
         new_path = root.replace(root_dir, dst_dir)
@@ -80,7 +80,7 @@ def trans_for_HALNet(root_dir, dst_dir):
                     with open(os.path.join(new_path, f.replace("_joint_pos.txt", ".dat")), 'wb') as fp:
                         pickle.dump(dat_dict, fp)
 
-def trans_for_JORNet(root_dir):
+def trans_for_PReNet(root_dir):
     for root, dirs, files in os.walk(root_dir):
         if files != []:
             for f in files:
