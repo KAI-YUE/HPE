@@ -286,7 +286,6 @@ def Synth_test(Hal, Jor, input_dir, output_dir, device="cuda"):
 
                     pos_3d = result[1].cpu().detach().squeeze().numpy()
                     pos_3d += np.array(x_0, y_0, d)
-                    pos_2d = project2plane(pos_3d)
 
                     # plot the original 2-D links
                     axs[1, 1].set_axis_off()

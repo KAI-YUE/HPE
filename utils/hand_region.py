@@ -59,7 +59,7 @@ def ROI_Hand(img, depth, center):
         depth:      mdarray, the depth image
         center:     tuple/ndarray/list, [x->col, y->row] the center of the wrist.
     Retruns,
-        bound:      [x_begin, x_end, y_begin, y_end]
+        bound:      [x_begin, x_end, y_begin, y_end] (x_end-x_begin=128, y_end-y_begin=128)
     """
     
     limit = 112
