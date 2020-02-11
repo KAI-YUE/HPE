@@ -51,14 +51,14 @@ class HLoNet(nn.Module):
 
 class PReNet(nn.Module):
     def __init__(self, in_dim=3):
-        super(PRegNet, self).__init__()
+        super(PReNet, self).__init__()
 
         self.Conv1 = nn.Sequential( 
             nn.Conv2d(in_channels=in_dim, out_channels=64, kernel_size=5, stride=1, padding=2),
             nn.BatchNorm2d(64),
             nn.ReLU())
 
-        self.maxpool = nn.MaxPool2d(kernel_size=3, stride=2, padding=1)
+        self.maxpool = nn.MaxPool2d(kernel_size=3, stride=1, padding=1)
         
         # Encoder part
         self.ConvB1 = Conv_ResnetBlock(64, 64, 128, stride=1)
@@ -70,11 +70,11 @@ class PReNet(nn.Module):
         self.ConvT1 = ConvTransBlock(1024, 1024, kernel=4, stride=2, padding=1)
         self.ConvT2 = ConvTransBlock(1024+512, 512, kernel=4, stride=2, padding=1)
         self.ConvT3 = ConvTransBlock(512+256, 256, kernel=4, stride=2, padding=1)
-        self.ConvT4 = ConvTransBlock(256+128, 128, kernel=4, stride=2, padding=1)
+        self.ConvT4 = ConvTransBlock(256+128, 128, kernel=3, stride=1, padding=1)
 
         # Output heatmaps and joint pos
         self.Conv_hm = Conv_ResnetBlock(128, 64, 21, stride=1) 
-        # self.fc = nn.Linear()
+        # self.fc = nn.Linear(128**3, 21*3)
 
     def forward(self, x):
         x = self.Conv1(x)
@@ -90,9 +90,10 @@ class PReNet(nn.Module):
         x = self.ConvT3(torch.cat((x,x2), dim=1))
         x = self.ConvT4(torch.cat((x,x1), dim=1))
 
-        y = self.Conv2(x)
+        hm = self.Conv_hm(x)
+        # pos = self.fc(x.view(x.shape[0], -1))
 
-        return y
+        return [hm, 0]
 
 
 class Conv_ResnetBlock(nn.Module):

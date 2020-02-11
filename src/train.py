@@ -186,9 +186,9 @@ def PRe_train(model, optimizer, device="cuda", epoch=-1):
                     heatmap = data['hm'].to(device)
                     pos = data['pos'].to(device)
 
-                    output, interm = model(image)
+                    output = model(image)
 
-                    loss = L(output[0], interm, output[1], heatmap, pos)
+                    loss = L(output[0], output[1], heatmap, pos)
                     logger.info("val loss {}".format(loss))
 
                     if (i > config.sample_size):
