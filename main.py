@@ -69,6 +69,7 @@ def main(mode=None, model_path=None):
             # Load the model and optimizer from the stored state_dict
             model.load_state_dict(state_dict['model'])
             optimizer.load_state_dict(state_dict['optimizer'])
+            optimizer.lr = config.learning_rate
 
             if mode == 2:
                 HLo_train(model, optimizer, device, state_dict['epoch'])

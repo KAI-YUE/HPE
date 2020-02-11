@@ -74,7 +74,7 @@ def HLo_train(model, optimizer, device="cuda", epoch=-1):
         
         # save the model
         if (config.save_epoch and iteration % config.save_epoch == 0):
-            save_model(os.path.join(config.model_dir, 'HALNet_epoch{}.pth'.format(epoch)), model, optimizer, epoch)
+            save_model(os.path.join(config.model_dir, 'HLo_epoch{}.pth'.format(epoch)), model, optimizer, epoch)
 
         # sample and save the prediction
         if(config.sample_epoch and epoch % config.sample_epoch == 0):
@@ -84,7 +84,7 @@ def HLo_train(model, optimizer, device="cuda", epoch=-1):
 
                 image = data['img'].to(device)
                 heatmap = data['w'].to(device)
-                output, _ = model(image)
+                output = model(image)
 
                 save_sample(image, heatmap, output, epoch)
 
@@ -97,9 +97,9 @@ def HLo_train(model, optimizer, device="cuda", epoch=-1):
                 for i, data in enumerate(val_loader, 0):
                     image = data['img'].to(device)
                     heatmap = data['w'].to(device)
-                    output, interm = model(image)
+                    output = model(image)
 
-                    loss = L(output, heatmap, interm)
+                    loss = L(output, heatmap)
                     logger.info("val loss {}".format(loss))
 
                     if (i > config.sample_size):
@@ -172,7 +172,7 @@ def PRe_train(model, optimizer, device="cuda", epoch=-1):
         
         # save the model
         if (config.save_epoch and iteration % config.save_epoch == 0):
-            save_model(os.path.join(config.model_dir, 'JORNet_epoch{}.pth'.format(epoch)), model, optimizer, epoch)
+            save_model(os.path.join(config.model_dir, 'PRe_epoch{}.pth'.format(epoch)), model, optimizer, epoch)
 
         # validate the model
         if(config.val_epoch and epoch % config.val_epoch == 0):
@@ -186,9 +186,9 @@ def PRe_train(model, optimizer, device="cuda", epoch=-1):
                     heatmap = data['hm'].to(device)
                     pos = data['pos'].to(device)
 
-                    output, interm = model(image)
+                    output = model(image)
 
-                    loss = L(output[0], interm, output[1], heatmap, pos)
+                    loss = L(output[0], output[1], heatmap, pos)
                     logger.info("val loss {}".format(loss))
 
                     if (i > config.sample_size):

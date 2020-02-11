@@ -47,8 +47,7 @@ class PReCriterion(object):
         Constructor.
         """
         config = loadConfig()
-        self.heatmap_size = [64, 64]
-        self.weights = config.loss_weights[2:]
+        self.weights = config.loss_weights[1:]
 
     def __call__(self, hm, pos, gt_heatmap, gt_pos):
         """
@@ -63,10 +62,11 @@ class PReCriterion(object):
             gt_pos:         tensor (N X 63), the groundtruth joint 3d positions.
         """
         loss = 0
-        hm = F.interpolate(hm, size=self.heatmap_size, mode='bilinear')
+        # hm = F.interpolate(hm, size=self.heatmap_size, mode='bilinear')
 
         assert(hm.shape == gt_heatmap.shape),  "Heatmap size mismatch!"
         
-        # loss1 = self.weights[0] * 1/(21*hm.shape[0]) * torch.sum((hm - gt_heatmap)**2) 
-        loss2 = self.weights[1] * 1/(21*pos.shape[0]) * torch.sum((pos - gt_pos)**2)
-        return loss2, loss2 
+        loss1 = self.weights[0] * 1/(hm.shape[0]) * torch.sum((hm - gt_heatmap)**2) 
+        # loss2 = self.weights[1] * 1/(pos.shape[0]) * torch.sum((pos - gt_pos)**2)
+        loss2 = 0
+        return loss1+loss2, loss2 

@@ -132,7 +132,6 @@ def save_sample(image, gt_heatmap, output, epoch=0, dir="./val_samples"):
         img = 255*img.transpose(1,2,0)
 
         heatmap = gt_heatmap[i, 0, ...].cpu().detach().numpy()
-        heatmap = cv2.resize(heatmap, (img.shape[1], img.shape[0]))
         heatmap = Heatmap(heatmap)
 
         pred = output[i, 0, ...].cpu().detach().numpy()
