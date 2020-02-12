@@ -45,11 +45,11 @@ def pre_process(image):
         image = (image - mean) / std
         image = image.transpose(2,0,1)
 
-        return torch.from_numpy(image).view(1, image.shape[0], image.shape[1], image.shape[2]).to(torch.float32)
+        return torch.from_numpy(image).to(torch.float32).view(1, image.shape[0], image.shape[1], image.shape[2]).to(torch.float32)
     
     # Gray scale format
     else:
-        return torch.from_numpy(image).view(1, 1, image.shape[0], image.shape[1]).to(torch.float32)
+        return torch.from_numpy(image).to(torch.float32).view(1, 1, image.shape[0], image.shape[1]).to(torch.float32)
 
 
 def pos_from_heatmap(heatmaps, depth):

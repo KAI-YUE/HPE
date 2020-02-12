@@ -85,34 +85,32 @@ def HLo_test(model, output_dir, device="cuda", mode=0):
             if (files != []):
                 sampled_in_folder = 0
                 for f in files:
-                    if ".dat" in f:
-                        with open(os.path.join(root, f), "rb") as fp:
-                            a_set = pickle.load(fp)
+                    with open(os.path.join(root, f), "rb") as fp:
+                        a_set = pickle.load(fp)
 
-                        img = a_set["img"]
-                        hm = a_set["W_ori"]
+                    img = a_set["img"]
+                    hm = a_set["W_hm"]
 
-                        Tensor_img = pre_process(img).to(device)
-                        Tensor_hm = pre_process(hm).to(device)
+                    Tensor_img = pre_process(img).to(device)
+                    Tensor_hm = pre_process(hm).to(device)
 
-                        result = model(Tensor_img)
-                        loss = L(result, Tensor_hm)
-                        
-                        result = np.squeeze(result.cpu().detach().numpy())
-                        result = cv2.resize(result, tuple(config.input_size))
-                        
-                        heatmap = Heatmap(result)
-                        composite = 255 * alpha * img + (1 - alpha) * heatmap
-                        cv2.imwrite(os.path.join(new_dir, f[:8] + "_{:.2f}.jpg".format(loss.cpu().detach())), composite)
+                    result = model(Tensor_img)
+                    loss = L(result, Tensor_hm)
+                    
+                    result = np.squeeze(result.cpu().detach().numpy())
+                    
+                    heatmap = Heatmap(result)
+                    composite = 255 * alpha * img + (1 - alpha) * heatmap
+                    cv2.imwrite(os.path.join(new_dir, f[:8] + "_{:.2f}.jpg".format(loss.cpu().detach())), composite)
 
-                        sampled_in_folder += 1
+                    sampled_in_folder += 1
 
-                        if (sampled_in_folder > config.samples_per_folder):
+                    if (sampled_in_folder > config.samples_per_folder):
                             break
                 
-                    already_sampled += sampled_in_folder
-                    if (sampled_in_folder > config.test_samples):
-                        break
+                already_sampled += sampled_in_folder
+                if (sampled_in_folder > config.test_samples):
+                    break
 
 
 def PRe_test(model, output_dir, device="cuda"):

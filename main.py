@@ -11,7 +11,7 @@ import torch.optim as optim
 from src.loadConfig import loadConfig
 from src.networks import HLoNet, PReNet, init_weights
 from src.train import HLo_train, PRe_train
-from src.test import HLo_test, PRe_test
+from src.test import HLo_test, PRe_test, Synth_test
 
 def main(mode=None, model_path=None):
     """
@@ -83,7 +83,7 @@ def main(mode=None, model_path=None):
             model.load_state_dict(state_dict['model'])
 
             if mode == 4: 
-                HLo_test(model, config.test_output_dir, device=device, mode=0)
+                HLo_test(model, config.test_output_dir, device=device, mode=1)
             elif mode == 5:
                 PRe_test(model, config.test_output_dir, device=device)
 
