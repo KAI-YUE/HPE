@@ -8,6 +8,7 @@ import matplotlib.pyplot as plt
 
 # Pytorch Libraries
 import torch
+import torch.nn.functional as F
 from torch.utils.data import DataLoader
 
 # My Libraries
@@ -123,13 +124,15 @@ def PRe_test(model, output_dir, device="cuda"):
     """
     alpha = 0.6
     config = loadConfig()
-        
+    cropped_size = tuple(config.cropped_size)
+
     already_sampled = 0
     L = PReCriterion()
 
     # Plot rows x cols to show results
     plot_rows = 4
     plot_cols = 6
+    num_parts = 21
 
     for root, dirs, files in os.walk(config.test_dir):
 
@@ -140,65 +143,88 @@ def PRe_test(model, output_dir, device="cuda"):
         if (files != []):
             sampled_in_folder = 0
             for f in files:
-                if ".dat" in f:
-                    with open(os.path.join(root, f), "rb") as fp:
-                        a_set = pickle.load(fp)
+                with open(os.path.join(root, f), "rb") as fp:
+                    a_set = pickle.load(fp)
+                
+                ROI = a_set["ROI"].astype("int")
+                img = a_set["img"][ROI[0]:ROI[1], ROI[2]:ROI[3]].astype(np.float32)
+                img = cv2.resize(img, cropped_size, interpolation=cv2.INTER_NEAREST)
+                depth = a_set["depth"][ROI[0]:ROI[1], ROI[2]:ROI[3]]
+                depth = cv2.resize(depth, cropped_size, interpolation=cv2.INTER_NEAREST)
+
+                Tensor_img = pre_process(img).to(device)
+                Tensor_hm = torch.from_numpy(a_set["heatmaps"]).to(torch.float32).to(device)
+                Tensor_hm = Tensor_hm[None, ...]
+                Tensor_pos = torch.from_numpy(a_set["3d_pos"])
+
+                result = model(Tensor_img)
+                loss = L(result[0], result[1], Tensor_hm, Tensor_pos)
+
+                hms = result[0].cpu().detach().numpy().squeeze()
+                pos_arr = pos_from_heatmap(hms, depth, ROI)
+
+                # Plot the result 
+                img = (255*img).astype("uint8")
+                fig, axs = plt.subplots(nrows=plot_rows, ncols=plot_cols, figsize=(20, 15))
+                counter = 0
+                for r in range(plot_rows):
+                    for c in range(plot_cols):
+                        hm = cv2.resize(hms[counter], tuple(config.cropped_size))
+                        heatmap = Heatmap(hm)
+
+                        composite = (alpha*img + (1-alpha)*heatmap[...,::-1]).astype(np.uint8)
+                        axs[r, c].set_axis_off()
+                        axs[r, c].set_title(Part_Namelist[counter])
+                        axs[r, c].imshow(composite)
                         
-                    img = a_set["hand"]
+                        counter += 1
+                        if counter == num_parts:
+                            break
 
-                    Tensor_img = pre_process(img).to(device)
-                    Tensor_hm = torch.from_numpy(a_set['heatmaps']).to(torch.float32).to(device)
-                    Tensor_hm = Tensor_hm[None, ...]
-                    Tensor_pos = torch.from_numpy(a_set['pos_arr']).view(1,21,3,1).to(torch.float32).to(device)
+                # # plot the original hand image
+                # axs[-1, 3].set_axis_off()
+                # axs[-1, 3].imshow(img)
+                
+                # Plot the 2-D links results
+                axs[-1, 3].set_axis_off()
+                axs[-1, 3].set_title("Filter")  
+                plot_joint(img, pos_arr, axs[-1, 3])
+                
+                # Plot the link results with naive method
+                pos_arr_ = naive_pos_from_heatmap(hms)
+                axs[-1,4].set_axis_off()
+                axs[-1,4].set_title("Direct Pred")
+                plot_joint(img, pos_arr_, axs[-1,4])
 
-                    result = model(Tensor_img)
-                    loss, _ = L(result[0], result[1], Tensor_hm, Tensor_pos)
-                    pos_arr = pos_from_heatmap(result[0].squeeze())
+                # Plot the original link results
+                axs[-1, 5].set_axis_off()
+                axs[-1, 5].set_title("Ground Truth")  
+                _2d_pos = a_set["2d_pos"]
+                _2d_pos[:,0] = (_2d_pos[:,0] - ROI[2]) * a_set["scale_factors"][1]
+                _2d_pos[:,1] = (_2d_pos[:,1] - ROI[0])* a_set["scale_factors"][0]
+                plot_joint(img, _2d_pos, axs[-1, 5])
 
-                    result = np.squeeze(result[0].cpu().detach().numpy())
-                    result = result.transpose((1,2,0))
+                # Calculate the 3d position
+                pos_arr[:,0] += ROI[2]
+                pos_arr[:,1] += ROI[0]
+                depth = a_set["depth"]
+                _3d_pos = np.zeros((num_parts,3))
+                for i in range(num_parts):
+                    _3d_pos[i] = back_project(pos_arr[i], depth[pos_arr[i,1], pos_arr[i,0]])
+                
+                _3d_error = np.mean( np.sqrt(np.sum( (_3d_pos-(a_set["3d_pos"] + a_set["wrist_pos"]))**2, axis=1 )) )
 
-                    # Plot the result 
-                    img = (255*img).astype("uint8")
-                    fig, axs = plt.subplots(nrows=plot_rows, ncols=plot_cols, figsize=(20, 15))
-                    counter = 0
-                    for r in range(plot_rows):
-                        for c in range(plot_cols):
-                            hm = cv2.resize(result[...,counter], tuple(config.cropped_size))
-                            heatmap = Heatmap(hm)
+                fig.savefig(os.path.join(new_dir, f[:8] + "_loss{:.2f}_error{:.2f}.jpg".format(loss.cpu().detach(), _3d_error)))
+                np.save(os.path.join(new_dir, f[:8] + "hm.npy"), hms)
 
-                            composite = (alpha*img + (1-alpha)*heatmap[...,::-1]).astype(np.uint8)
-                            axs[r, c].set_axis_off()
-                            axs[r, c].set_title(Part_Namelist[counter])
-                            axs[r, c].imshow(composite)
-                            
-                            counter += 1
-                            if counter == 21:
-                                break
-
-                    # plot the original hand image
-                    axs[-1, 3].set_axis_off()
-                    axs[-1, 3].imshow(img)
-                    
-                    # Plot the 2-D links results
-                    axs[-1, 4].set_axis_off()  
-                    plot_joint(img, pos_arr, axs[-1, 4])
-                    
-                    # Plot the original image
-                    axs[-1, 5].set_axis_off()  
-                    axs[-1, 5].imshow((255*a_set["img"]).astype("uint8"))
-
-                    fig.savefig(os.path.join(new_dir, f[:8] + "_{:.2f}.jpg".format(loss.cpu().detach())))
-                    np.save(os.path.join(new_dir, f[:8] + "hm.npy"), result)
-
-                    plt.close(fig)
-                    sampled_in_folder += 1
-                    if (sampled_in_folder > config.samples_per_folder):
-                        break
-                    
-                already_sampled += sampled_in_folder
-                if (sampled_in_folder > config.test_samples):
+                plt.close(fig)
+                sampled_in_folder += 1
+                if (sampled_in_folder > config.samples_per_folder):
                     break
+                
+            already_sampled += sampled_in_folder
+            if (sampled_in_folder > config.test_samples):
+                break
 
 
 def Synth_test(HLo, PRe, input_dir, output_dir, device="cuda"):

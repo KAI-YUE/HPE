@@ -52,16 +52,18 @@ def pre_process(image):
         return torch.from_numpy(image).to(torch.float32).view(1, 1, image.shape[0], image.shape[1]).to(torch.float32)
 
 
-def pos_from_heatmap(heatmaps, depth):
+def pos_from_heatmap(heatmaps, depth, ROI):
     """
     Get the pose array from the heatmap.
     -------------------------------------------------------------------------------
     Args,  
-        heatmaps:    ndarray([21 x H x W]), the heatmap corresponding to the RGB image.  
+        heatmaps:    ndarray([21 x H x W]), the heatmap corresponding to the RGB image. 
+        depth:       ndarray([H x W]), the depth image.
+        ROI:         thr ROI coordinates of the hand corresponding to the original image. 
     Returns,
         pos_arr:    ndarray(21 x 2 ), each row corresponds to [col, row] (for plot purpose)
     """ 
-    pos_arr = np.zeros((21, 2))
+    pos_arr = np.zeros((21, 2), dtype="int")
     diffident_list = []
     confident_th = 0.5
     num_clusters = 8                        # number of cluster centers to consider
@@ -71,7 +73,7 @@ def pos_from_heatmap(heatmaps, depth):
         conf_index = np.argmax(heatmaps[i])
         (v, u) = np.unravel_index(conf_index, (heatmaps.shape[1], heatmaps.shape[2]))
         
-        if (heatmaps[v, u] > confident_th):
+        if (heatmaps[i, v, u] > confident_th):
             pos_arr[i, 0] = u
             pos_arr[i, 1] = v
         
@@ -82,17 +84,33 @@ def pos_from_heatmap(heatmaps, depth):
     for i in diffident_list:
         indices = np.argpartition(heatmaps[i].ravel(), -num_clusters)[-num_clusters:]
 
+        error_arr = np.zeros(num_clusters)
         for j, index in enumerate(indices):
+        
             (v, u) = np.unravel_index(index, (heatmaps.shape[1], heatmaps.shape[2]))
-
-            error_arr = np.zeros(num_clusters)   
-            for k in links_dict[i]:
-                if not k in diffident_list:
-                    (x, y, z) = back_project((u, v), depth(v,u))
-                    error_arr[j] += np.sum((np.array([x, y, z]) - mean_dict[k])**2)
+            (x1, y1, z1) = back_project((u+ROI[2], v+ROI[0]), depth[v, u])
+        
+            for k, l in enumerate(links_dict[str(i)]):
+                if not l in diffident_list:
+                    (x2, y2, z2) = back_project((pos_arr[l,0]+ROI[2], pos_arr[l,1]+ROI[0]), depth[pos_arr[l,1], pos_arr[l,0]])
+                    phalanx_length = np.sqrt((x1-x2)**2+(y1-y2)**2+(z1-z2)**2)
+                    error_arr[j] += (phalanx_length - mean_dict[str(i)][k])**2
             
         center_index = np.argmin(error_arr)    
-        (v, u) = np.unravel_index(center_index, (heatmaps.shape[1], heatmaps.shape[2]))
+        (v, u) = np.unravel_index(indices[center_index], (heatmaps.shape[1], heatmaps.shape[2]))
+        pos_arr[i, 0] = u
+        pos_arr[i, 1] = v
+
+    return pos_arr
+
+
+def naive_pos_from_heatmap(heatmaps):
+    pos_arr = np.zeros((21, 2), dtype="int")
+    
+    # Rigister all of the certain keypoints
+    for i in range(heatmaps.shape[0]):
+        conf_index = np.argmax(heatmaps[i])
+        (v, u) = np.unravel_index(conf_index, (heatmaps.shape[1], heatmaps.shape[2]))
         pos_arr[i, 0] = u
         pos_arr[i, 1] = v
 
@@ -144,6 +162,19 @@ def save_sample(image, gt_heatmap, output, epoch=0, dir="./val_samples"):
         cv2.imwrite(os.path.join(dir, "smaple_{}_{}.jpg".format(epoch, i)), output_image)
 
 
+def save_model(file_name, model, optimizer, epoch=0, max_save=5):
+    torch.save(dict(model=model.state_dict(), optimizer=optimizer.state_dict(), epoch=epoch), file_name)
+
+    # Check the model and only preserve the last max_save(default:5) models
+    config = loadConfig()
+    flist = os.listdir(config.model_dir)
+    if (len(flist) > max_save):
+        for f in flist:
+            if ('epoch' + str(epoch-max_save*config.save_epoch) in f):
+                os.remove(os.path.join(config.model_dir, f))
+                break
+
+
 def project2plane(pos_3d):
     """
     Project the 3d position array to 2d plane. Camera parameters: f_x = 475.6 f_y = 475.62 x_0 = 311.125 y_0 = 245.965
@@ -165,26 +196,14 @@ def project2plane(pos_3d):
 
     return pos_arr
 
-def save_model(file_name, model, optimizer, epoch=0, max_save=5):
-    torch.save(dict(model=model.state_dict(), optimizer=optimizer.state_dict(), epoch=epoch), file_name)
-
-    # Check the model and only preserve the last max_save(default:5) models
-    config = loadConfig()
-    flist = os.listdir(config.model_dir)
-    if (len(flist) > max_save):
-        for f in flist:
-            if ('epoch' + str(epoch-max_save*config.save_epoch) in f):
-                os.remove(os.path.join(config.model_dir, f))
-                break
-
-
-def back_project(pos_2d, depth):
+def back_project(pos_2d, depth, scale_factor=2):
     """
-    Back project the 2d coordinates to 3d frame. x = d/f_x * (u-x0), y = d/f_y * (v-y0). 
+    Back project the 2d coordinates to the 3d frame. x = d/f_x * (u-x0), y = d/f_y * (v-y0). 
     ---------------------------------------------------------------------------
     Args,
-        pos_2d:    ndarray(2, ), (u, v)
-        depth:     the dapth value.
+        pos_2d:         ndarray(2, ), (u, v)
+        depth:          the depth value.
+        scale_factor:   the scale factor of the 2d_positions.
     Returns,
         pos_3d:    ndarray(3, ), (x, y, z)
     """
@@ -194,28 +213,10 @@ def back_project(pos_2d, depth):
     y_0 = 245.965
 
     pos_3d = np.array([0, 0, depth])
-    pos_3d[0] = depth/f_x * (pos_2d[0] - x_0)
-    pos_3d[1] = depth/f_y * (pos_2d[1] - y_0)
+    pos_3d[0] = depth/f_x * (scale_factor * pos_2d[0] - x_0)
+    pos_3d[1] = depth/f_y * (scale_factor * pos_2d[1] - y_0)
 
     return pos_3d
-
-
-def skin_mask(img):
-    """
-    Generate a skin mask based on the rule : Cr \in [139, 210] & Cb \in [77, 127]
-    -----------------------------------------------------------------------------------
-    Args,
-        img:    an img in BGR format
-    Retruns,
-        mask:   a binary mask with skin pixels set to 1. (with 3 channels)
-    """
-    
-    YCrCb = cv2.cvtColor(img, cv2.COLOR_BGR2YCrCb)
-    
-    mask = (YCrCb[...,2]>=77) * (YCrCb[...,2]<=127) * (YCrCb[...,1]>=139) * (YCrCb[...,1]<=210)         
-    mask = np.reshape(mask, (mask.shape[0], mask.shape[1], 1))
-    
-    return np.repeat(mask, 3, 2)
 
 
 mean_dict = \

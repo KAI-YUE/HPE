@@ -154,8 +154,8 @@ def PRe_train(model, optimizer, device="cuda", epoch=-1):
             pos = data['pos'].to(device)
 
             # Get output and calculate loss
-            output= model(image)
-            loss, pos_loss = L(output[0], output[1], heatmap, pos)
+            output = model(image)
+            loss = L(output[0], output[1], heatmap, pos)
 
             # backward for generator
             loss.backward()
@@ -163,7 +163,7 @@ def PRe_train(model, optimizer, device="cuda", epoch=-1):
             
             # update the log
             if (config.log_interval and iteration % config.log_interval == 0):
-                logger.info("epoch {} iter {} loss {:.2f} pos_loss {:.2f}".format(epoch, iteration, loss, pos_loss))
+                logger.info("epoch {} iter {} loss {:.2f} ".format(epoch, iteration, loss))
             
             iteration += 1
 
