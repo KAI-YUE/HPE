@@ -66,5 +66,7 @@ class PReCriterion(object):
 
         assert(hm.shape == gt_heatmap.shape),  "Heatmap size mismatch!"
         
-        loss = self.weights[0] * 1/(hm.shape[0]) * torch.sum((hm - gt_heatmap)**2) 
-        return loss 
+        loss1 = self.weights[0] * 1/(hm.shape[0]) * torch.sum((hm - gt_heatmap)**2) 
+        loss2 = self.weights[1] * 1/(pos.shape[0]) * torch.sum((pos - gt_pos)**2)
+
+        return loss1+loss2, loss2 

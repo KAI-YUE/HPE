@@ -74,7 +74,10 @@ class PReNet(nn.Module):
 
         # Output heatmaps and joint pos
         self.Conv_hm = Conv_ResnetBlock(128, 64, 21, stride=1) 
-        # self.fc = nn.Linear(128**3, 21*3)
+        
+        # self.Pos_Conv1 = Conv_ResnetBlock(128, 128, 128, stride=1)
+        # self.Pos_Conv2 = Conv_ResnetBlock(128, 128, 64, stride=2)
+        # self.Pos_fc = nn.Linear(64**3, 21*3) 
 
     def forward(self, x):
         x = self.Conv1(x)
@@ -91,9 +94,13 @@ class PReNet(nn.Module):
         x = self.ConvT4(torch.cat((x,x1), dim=1))
 
         hm = self.Conv_hm(x)
-        # pos = self.fc(x.view(x.shape[0], -1))
+        
+        # pos = self.Pos_Conv1(x)
+        # pos = self.Pos_Conv2(pos)
+        # pos = self.Pos_fc(pos.view(pos.shape[0], -1))
+        pos = 0
 
-        return [hm, 0]
+        return [hm, pos]
 
 
 class Conv_ResnetBlock(nn.Module):

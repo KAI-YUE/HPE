@@ -219,6 +219,21 @@ def back_project(pos_2d, depth, scale_factor=2):
     return pos_3d
 
 
+def freeze_layers(model, num_layers):
+    """
+    Freeze the specific parameters of the network layers.
+    """
+    i = 0
+    for child in model.children():
+        i += 1
+        if i > num_layers:
+            break    
+        for param in child.parameters():
+            param.requires_grad = False
+    
+
+
+
 mean_dict = \
 {
 "0": np.array([40.712, 79.706, 75.669, 75.358, 74.556, ]),

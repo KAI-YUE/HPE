@@ -185,18 +185,42 @@ def PRe_test(model, output_dir, device="cuda"):
                 # axs[-1, 3].set_axis_off()
                 # axs[-1, 3].imshow(img)
                 
+                # Calculate the 3d position
+                pos_in_ori = pos_arr.copy()
+                pos_in_ori[:,0] += ROI[2]
+                pos_in_ori[:,1] += ROI[0]
+                depth = a_set["depth"]
+                _3d_pos = np.zeros((num_parts,3))
+                for i in range(num_parts):
+                    _3d_pos[i] = back_project(pos_in_ori[i], depth[pos_in_ori[i,1], pos_in_ori[i,0]])
+                
+                _3d_error = np.mean( np.sqrt(np.sum( (_3d_pos-(a_set["3d_pos"] + a_set["wrist_pos"]))**2, axis=1 )) )
+
                 # Plot the 2-D links results
+                
                 axs[-1, 3].set_axis_off()
-                axs[-1, 3].set_title("Filter")  
+                axs[-1, 3].set_title("Filter {:.2f}".format(_3d_error))  
                 plot_joint(img, pos_arr, axs[-1, 3])
                 
                 # Plot the link results with naive method
                 pos_arr_ = naive_pos_from_heatmap(hms)
+
+                pos_in_ori = pos_arr_.copy()
+                pos_in_ori[:,0] += ROI[2]
+                pos_in_ori[:,1] += ROI[0]
+                depth = a_set["depth"]
+                _3d_pos = np.zeros((num_parts,3))
+                for i in range(num_parts):
+                    _3d_pos[i] = back_project(pos_in_ori[i], depth[pos_in_ori[i,1], pos_in_ori[i,0]])
+                
+                _3d_error = np.mean( np.sqrt(np.sum( (_3d_pos-(a_set["3d_pos"] + a_set["wrist_pos"]))**2, axis=1 )) )
+
                 axs[-1,4].set_axis_off()
-                axs[-1,4].set_title("Direct Pred")
+                axs[-1,4].set_title("Direct Pred {:.2f}".format(_3d_error))
                 plot_joint(img, pos_arr_, axs[-1,4])
 
                 # Plot the original link results
+                
                 axs[-1, 5].set_axis_off()
                 axs[-1, 5].set_title("Ground Truth")  
                 _2d_pos = a_set["2d_pos"]
@@ -204,17 +228,7 @@ def PRe_test(model, output_dir, device="cuda"):
                 _2d_pos[:,1] = (_2d_pos[:,1] - ROI[0])* a_set["scale_factors"][0]
                 plot_joint(img, _2d_pos, axs[-1, 5])
 
-                # Calculate the 3d position
-                pos_arr[:,0] += ROI[2]
-                pos_arr[:,1] += ROI[0]
-                depth = a_set["depth"]
-                _3d_pos = np.zeros((num_parts,3))
-                for i in range(num_parts):
-                    _3d_pos[i] = back_project(pos_arr[i], depth[pos_arr[i,1], pos_arr[i,0]])
-                
-                _3d_error = np.mean( np.sqrt(np.sum( (_3d_pos-(a_set["3d_pos"] + a_set["wrist_pos"]))**2, axis=1 )) )
-
-                fig.savefig(os.path.join(new_dir, f[:8] + "_loss{:.2f}_error{:.2f}.jpg".format(loss.cpu().detach(), _3d_error)))
+                fig.savefig(os.path.join(new_dir, f[:8] + ".jpg"))
                 np.save(os.path.join(new_dir, f[:8] + "hm.npy"), hms)
 
                 plt.close(fig)
