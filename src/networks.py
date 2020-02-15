@@ -46,7 +46,7 @@ class HLoNet(nn.Module):
 
         y = self.Conv2(x)
 
-        return y
+        return 2*torch.sigmoid(y) - 1
 
 
 class PReNet(nn.Module):
@@ -94,7 +94,8 @@ class PReNet(nn.Module):
         x = self.ConvT4(torch.cat((x,x1), dim=1))
 
         hm = self.Conv_hm(x)
-        
+        hm = torch.sigmoid(hm)
+
         # pos = self.Pos_Conv1(x)
         # pos = self.Pos_Conv2(pos)
         # pos = self.Pos_fc(pos.view(pos.shape[0], -1))

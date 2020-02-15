@@ -18,8 +18,9 @@ class HLoCriterion(object):
         Constructor.
         """
         config = loadConfig()
-        self.heatmap_size = config.heatmap_size
+        self.heatmap_size = [config.input_size[1], config.input_size[0]]
         self.weights = config.loss_weights[0]
+        self.epsilon = torch.tensor(1e-8)
 
     def __call__(self, x, ground_truth):
         """
@@ -33,8 +34,8 @@ class HLoCriterion(object):
         # x = F.interpolate(x, size=self.heatmap_size, mode='bilinear')
         assert(x.shape == ground_truth.shape),  "Heatmap size mismatch!"
         
-        loss += self.weights * 1/x.shape[0] * torch.sum((x - ground_truth)**2)
-
+        # loss += self.weights * 1/x.shape[0] * torch.sum((x - ground_truth)**2)
+        loss = self.weights * 1/x.shape[0] * torch.sum(-(ground_truth)*torch.log(x + self.epsilon))
         return  loss
 
 

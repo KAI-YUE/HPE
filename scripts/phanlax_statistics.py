@@ -71,7 +71,7 @@ for root, dirs, files in os.walk(src_dir):
                         
 
 for key, values in mean_dict.items():
-    txt = "'{}': [".format(key)
+    txt = "{}: [".format(key)
     for i, val in enumerate(values):
         mean_dict[key][i] /= counter
         txt += "{:.3f}, ".format(mean_dict[key][i])
