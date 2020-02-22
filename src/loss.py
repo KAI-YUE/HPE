@@ -34,8 +34,10 @@ class HLoCriterion(object):
         # x = F.interpolate(x, size=self.heatmap_size, mode='bilinear')
         assert(x.shape == ground_truth.shape),  "Heatmap size mismatch!"
         
-        # loss += self.weights * 1/x.shape[0] * torch.sum((x - ground_truth)**2)
-        loss = self.weights * 1/x.shape[0] * torch.sum(-(ground_truth)*torch.log(x + self.epsilon))
+        loss += self.weights * 1/x.shape[0] * torch.sum((x - ground_truth)**2)
+        # loss = self.weights * 1/x.shape[0] * torch.sum(-(ground_truth*torch.log(x + self.epsilon) + \
+        #                                             (1-ground_truth)*torch.log((1-x)+self.epsilon) ))
+        
         return  loss
 
 
@@ -50,7 +52,7 @@ class PReCriterion(object):
         config = loadConfig()
         self.weights = config.loss_weights[1:]
 
-    def __call__(self, hm, pos, gt_heatmap, gt_pos):
+    def __call__(self, hm, gt_heatmap):
         """
         Get the Euclid distance^2 (L2 LOSS) between x and ground_truth heatmap 
         & L2 loss between predicted position and ground_truth pos.
@@ -58,16 +60,13 @@ class PReCriterion(object):
         Args,
             hm:             tensor (N x 1 x h x w), the predicted confidence map.
             interm_pos:     tensor (N x 63 [21x3]), the intermediate output of 3d joint positions.
-            pos:            tensor (N x 63 [21x3] ), the predicted joint 3d positions.
             gt_heatmap:     tensor (21 x { N x 1 x H x W }), the groundtruth confidence map.
-            gt_pos:         tensor (N X 63), the groundtruth joint 3d positions.
         """
-        loss = 0
         # hm = F.interpolate(hm, size=self.heatmap_size, mode='bilinear')
 
         assert(hm.shape == gt_heatmap.shape),  "Heatmap size mismatch!"
         
-        loss1 = self.weights[0] * 1/(hm.shape[0]) * torch.sum((hm - gt_heatmap)**2) 
-        loss2 = self.weights[1] * 1/(pos.shape[0]) * torch.sum((pos - gt_pos)**2)
+        loss = self.weights[0] * 1/(hm.shape[0]) * torch.sum((hm - gt_heatmap)**2) 
+        # loss2 = 0
 
-        return loss1+loss2, loss2 
+        return loss

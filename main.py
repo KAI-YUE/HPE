@@ -9,14 +9,14 @@ import torch.optim as optim
 
 # My Libraries
 from src.loadConfig import loadConfig
-from src.networks import HLoNet, PReNet, init_weights
+from src.networks import HLoNet, PReNet, Regressor, init_weights
 from src.train import HLo_train, PRe_train
-from src.test import HLo_test, PRe_test, Synth_test
+from src.test import HLo_test, PRe_test, Synth_test, Dexter_test
 from utils.tools import freeze_layers
 
 def main(mode=None, model_path=None):
     """
-    mode to select
+    mode selection
     0: train HLoNet from scratch 
     1: train PReNet from scratch
     2: train HLoNet from checkpoint
@@ -37,10 +37,14 @@ def main(mode=None, model_path=None):
     else:
         device = torch.device("cpu")
 
-    if (mode == 0 or mode == 1):
+    if (mode < 2):
 
         # Initialize the HLoNet
-        model = HLoNet() if mode == 0 else PReNet()
+        if mode == 0:
+            model = HLoNet()
+        elif mode == 1:
+            model = PReNet()
+
         model.apply(init_weights)
         model.to(device)
 
@@ -53,14 +57,14 @@ def main(mode=None, model_path=None):
 
         if mode == 0:
             HLo_train(model, optimizer, device)
-        else:
+        elif mode == 1:
             PRe_train(model, optimizer, device)
 
     elif (mode < 6):
         state_dict = torch.load(model_path[0], map_location=device)
 
         # load from the checkpoint
-        if (mode == 2 or mode == 3):
+        if (mode < 4):
 
             # Initialize the model and optimizer
             model = HLoNet() if mode == 2 else PReNet()
@@ -78,10 +82,10 @@ def main(mode=None, model_path=None):
 
             if mode == 2:
                 HLo_train(model, optimizer, device, state_dict['epoch'])
-            else:
+            elif mode == 3:
                 PRe_train(model, optimizer, device, state_dict['epoch'])       
         
-        elif (mode == 4 or 5):
+        elif (mode < 6):
             model = HLoNet() if mode == 4 else PReNet()
             model.to(device)
 
@@ -105,8 +109,9 @@ def main(mode=None, model_path=None):
         PRe.to(device)
 
         if mode == 6 :
-            Synth_test(HLo, PRe, config.val_dir, config.test_output_dir)
-            
+            Synth_test(HLo, PRe, config.test_dir, config.test_output_dir)
+        elif mode == 7:
+            Dexter_test(HLo, PRe, config.test_dir, config.test_output_dir)   
 
 if __name__ == '__main__':
 

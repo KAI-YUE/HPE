@@ -14,7 +14,7 @@ fg_b = 1.78
 
 def to_YCbCr(img):
     """
-    convert a float image ([]0, 1]) to YCbCr format.
+    convert a float image ([0, 1]) to YCbCr format.
     """
     delta = 128/255
     YCbCr = np.zeros_like(img)
@@ -39,7 +39,7 @@ def foreground_mask(depth):
     Generate the foreground mask.
     """   
     # Based on the result of SVM regression.
-    return (depth < 434)
+    return (depth<434) * (depth>0)
 
 def num_skin_pixels(mask):
     """
@@ -51,91 +51,38 @@ def num_skin_pixels(mask):
     return np.sum(mask) 
 
 
-def ROI_Hand(img, depth, center):
+def ROI_Hand(img, depth, center, invalid_depth=32001):
     """
     Extract the ROI containing the hand, i.e, the bounding box.
     ---------------------------------------------------------------------------------
     Args,
-        img:        ndarray, the original RGB image. [0, 1]
-        depth:      ndarray, the depth image
-        center:     tuple/ndarray/list, [x->col, y->row] the center of the wrist.
+        img:            ndarray, the original RGB image. [0, 1]
+        depth:          ndarray, the depth image
+        center:         tuple/ndarray/list, [x->col, y->row] the center of the root.
+        invalid_depth:  the value of the invald depth
     Retruns,
         bound:      [x_begin, x_end, y_begin, y_end]
     """
-    
-    limit = 112
-    step = 1
-    noise_th = [10, 300]          # pixels greater than thresholds are considered as noise
-    th = 3
-    margin = 8
-    
-    x_begin = max(center[1] - limit, 0)
-    y_begin = int(max(center[0] - limit,0))
-    y_end = int(min(center[0] + limit, img.shape[1]-1))
-    
-    YCrCb = to_YCbCr(img)
-    skin_m = skin_mask(YCrCb)
-    fg_m = foreground_mask(depth)
-    
-    mask = skin_m * fg_m
-    up_pixels = 1000
+    size_factor = 27025 
+    depth_mean = 0
+    num_valid = 0
 
-    for i in range(x_begin, center[1], step):
-        if num_skin_pixels(mask[i, y_begin:y_end]) >= th:
-            i_begin = max(i-margin, 0)
-            up_pixels = num_skin_pixels(mask[i_begin:i+margin, :])
-            if up_pixels < noise_th[0]:
-                continue
-            x_begin = i
-            break
+    for i in range(center[1]-2, center[1]+3):
+        for j in range(center[0]-2, center[0]+3):
+            if depth[i,j] != invalid_depth:
+                depth_mean += depth[i,j]
+                num_valid += 1
     
+    if num_valid > 0:
+        depth_mean /= num_valid
+        radius = size_factor / depth_mean 
+
+        x_begin = max(center[1] - radius, 0)
+        x_end = min(center[1] + radius, img.shape[0]-1)
+        y_begin = max(center[0] - radius, 0)
+        y_end = min(center[0] + radius, img.shape[1]-1)
     
-    x_end = min(x_begin+limit, img.shape[0]-1)
-    
-    left_pixels = 1000
-    right_pixels = 1000
-    
-    for j in range(y_end, center[0], -step):
-        if num_skin_pixels(mask[x_begin:x_end, j]) >= th:
-            right_pixels = num_skin_pixels(mask[:, j-2*margin:j-margin])
-            y_end = j
-            break
-    
-    for j in range(y_begin, center[0], step):
-        if num_skin_pixels(mask[x_begin:x_end, j]) >= th:
-            left_pixels = num_skin_pixels(mask[:, j+margin:j+2*margin])
-            y_begin = j
-            break
-    
-#    # Arm on the left
-    if left_pixels > right_pixels:
-        if right_pixels < noise_th[1]:
-            y_begin = y_end - limit
-        else:
-            y_begin = int(center[0] - 0.5*limit)
-            y_end = y_begin + limit
-    # Arm on the right       
-    else:
-        if left_pixels < noise_th[1]:
-            y_end = y_begin + limit
-        else:
-            y_end = int(center[0] + 0.5*limit)
-            y_begin = y_end - limit
-    
-    x_begin = max(x_begin-2*margin, 0)
-    x_end = min(x_end, img.shape[0]-1)
-    
-    if y_begin-margin < 0:
-        y_begin = 0
-        y_end = limit + 2*margin
-    elif y_begin + margin >= img.shape[1]:
-        y_end = img.shape[1] - 1
-        y_begin = y_end - (limit + 2*margin)  
-    else:
-        y_begin = y_begin - margin
-        y_end = y_end + margin
-        
-    return np.array([x_begin, x_end, y_begin, y_end])
+        return np.array([x_begin, x_end, y_begin, y_end], dtype="int16"), depth_mean
      
 
 def ROI_from_pos(pos_arr, size=128):
@@ -169,7 +116,7 @@ def ROI_from_pos(pos_arr, size=128):
             up_bound -= half_margin + 1
             bottom_bound += half_margin
     
-    return np.asarray([up_bound, bottom_bound, left_bound, right_bound])
+    return np.asarray([up_bound, bottom_bound, left_bound, right_bound], dtype="int")
 
 #if __name__ == "__main__":
 #    data_path = r"F:\DataSets\Transformed_SynthHands\female_noobject\seq02\cam01\01\00000062.dat"

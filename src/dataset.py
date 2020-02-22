@@ -97,7 +97,7 @@ class PReDataset(Dataset):
         # Heatmaps of different parts
         hm = torch.from_numpy(a_set["heatmaps"]).to(torch.float32)
         
-        pos = torch.from_numpy(a_set['3d_pos'].astype('float32')).view(-1)
+        pos = torch.from_numpy(a_set['3d_pos'].astype('float32')).view(1,21,3)
 
         return dict(img=Img, hm=hm, pos=pos)
             

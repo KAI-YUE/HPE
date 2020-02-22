@@ -12,14 +12,16 @@ import pickle
 import numpy as np
 
 # My Libraries
-from utils.heatmap import Gaussian_heatmap
-from utils.hand_region import ROI_Hand    
+#from utils.heatmap import Gaussian_heatmap
+#from utils.hand_region import ROI_Hand, ROI_from_pos    
 
 f_x = 475.62
 f_y = 475.62
 x_0 = 311.125
 y_0 = 245.965
 
+max_depth = 1000
+root_index = 9
 num_parts = 21
 
 Part_Namelist = ["W", 
@@ -70,23 +72,30 @@ def trans_SynthHands(src_dir, dst_dir):
                         projected_pos[i, 1] = 0.5*(f_y / pos[i, 2] * pos[i, 1] + y_0)
                         
                     img_name = f.replace("joint_pos.txt", "color_on_depth.png")
-                    color_on_depth = cv2.imread(os.path.join(root, img_name))
+                    color_on_depth = cv2.imread(os.path.join(root, img_name))[..., ::-1]
                     [h, w] = [int(0.5*color_on_depth.shape[0]), int(0.5*color_on_depth.shape[1])]
                     color_on_depth = cv2.resize(color_on_depth, (w, h))
                     
                     # Save img, pos and all of the heatmap ground truth in a dict 
-                    dat_dict = {"img":(color_on_depth[:,:,::-1]/255).astype(np.float16)}
+                    dat_dict = {"img":(color_on_depth/255).astype(np.float16)}
                     
                     # Read depth image 
                     depth_name = f.replace("joint_pos.txt", "depth.png")
                     depth = cv2.imread(os.path.join(root, depth_name), -1)
-                    depth = cv2.resize(depth, (w, h))
+                    depth = cv2.resize(depth, (w, h), interpolation=CV_INTER_NEAREST)
+                    depth = np.where(depth > max_depth, max_depth, depth)
                     dat_dict['depth'] = depth
+                    
+                    # Normalize depth to [-1,1]
+                    min_depth = np.min(depth)
+                    norm_depth = np.where(depth > max_depth, max_depth, depth)
+                    norm_depth = (norm_depth - min_depth) / (max_depth - min_depth)
+                    dat_dict["norm_depth"] = (2*norm_depth - 1).astype("float16")
                     
                     wrist_set = Gaussian_heatmap(color_on_depth, projected_pos[0])
                     dat_dict["W_hm"] = wrist_set["confidence_map"].astype(np.float16)
                     
-                    ROI = ROI_from_pos(projected_pos)
+                    ROI = ROI_from_pos(projected_pos).astype("int")
                     
                     if (ROI[1] - ROI[0] > crop_size):
                         row_scale = crop_size / (ROI[1] - ROI[0]) 
@@ -152,7 +161,7 @@ def trans_EgoData(src_dir, dst_dir, category="Desk"):
         
         else:
             a_set = {}
-            color_on_depth = cv2.imread(os.path.join(src_dir, "color_on_depth", color_file.format(i)))
+            color_on_depth = cv2.imread(os.path.join(src_dir, "color_on_depth", color_file.format(i)))[...,::-1]
             color_on_depth = cv2.resize(color_on_depth, (320, 240))
             depth = cv2.imread(os.path.join(src_dir, "depth", depth_file.format(i)), -1)
             depth = cv2.resize(depth, (320, 240))
@@ -213,5 +222,7 @@ def get_3dpos(file_name):
 
 if __name__ == "__main__":
     category = "Desk"
-    src_dir = r"F:\DataSets\EgoDexter\data\{}"
-    dst_dir = r"F:\Datasets\EgoDexter\data\{}"
+    src_dir = r"F:\DataSets\EgoDexter\data\{}".format(category)
+    dst_dir = r"F:\Datasets\Dexter_transformed\{}".format(category)
+    
+    trans_EgoData(src_dir, dst_dir, category)

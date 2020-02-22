@@ -175,12 +175,13 @@ def save_model(file_name, model, optimizer, epoch=0, max_save=5):
                 break
 
 
-def project2plane(pos_3d):
+def project2plane(pos_3d, scale_factor=0.5):
     """
     Project the 3d position array to 2d plane. Camera parameters: f_x = 475.6 f_y = 475.62 x_0 = 311.125 y_0 = 245.965
     -------------------------------------------------------------------------
     Args,
         pos_3d:    ndarray(21 x 3), the 3d position array. 
+        scale_factor:   the scale factor of the 2d_positions.
     """
     f_x = 475.62
     f_y = 475.62
@@ -188,11 +189,11 @@ def project2plane(pos_3d):
     y_0 = 245.965
 
     num_parts = 21
-    pos_arr = np.zeros((num_parts, 2))
+    pos_arr = np.zeros((num_parts, 2), dtype="int")
 
     for i in range(num_parts):
-        pos_arr[i, 0] = f_x / pos_3d[i, 2] * pos_3d[i, 0] + x_0
-        pos_arr[i, 1] = f_y / pos_3d[i, 2] * pos_3d[i, 1] + y_0
+        pos_arr[i, 0] = 0.5 * (f_x / pos_3d[i, 2] * pos_3d[i, 0] + x_0)
+        pos_arr[i, 1] = 0.5 * (f_y / pos_3d[i, 2] * pos_3d[i, 1] + y_0)
 
     return pos_arr
 

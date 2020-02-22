@@ -112,6 +112,7 @@ def HLo_train(model, optimizer, device="cuda", epoch=-1):
         if (device != torch.device('cpu')):
             torch.cuda.empty_cache() 
 
+
 def PRe_train(model, optimizer, device="cuda", epoch=-1):
     config = loadConfig()
 
@@ -155,7 +156,7 @@ def PRe_train(model, optimizer, device="cuda", epoch=-1):
 
             # Get output and calculate loss
             output = model(image)
-            loss, pos_loss = L(output[0], output[1], heatmap, pos)
+            loss = L(output, heatmap)
 
             # backward for generator
             loss.backward()
@@ -163,7 +164,7 @@ def PRe_train(model, optimizer, device="cuda", epoch=-1):
             
             # update the log
             if (config.log_interval and iteration % config.log_interval == 0):
-                logger.info("epoch {} iter {} loss {:.3f} pos_loss {:.3f}".format(epoch, iteration, loss, pos_loss))
+                logger.info("epoch {} iter {} loss {:.3f} ".format(epoch, iteration, loss))
             
             iteration += 1
 
@@ -188,8 +189,8 @@ def PRe_train(model, optimizer, device="cuda", epoch=-1):
 
                     output = model(image)
 
-                    loss, pos_loss = L(output[0], output[1], heatmap, pos)
-                    logger.info("val loss {:.2f} pos_loss{:.2f}".format(loss, pos_loss))
+                    loss = L(output, heatmap)
+                    logger.info("val loss {:.2f}".format(loss))
 
                     if (i > config.sample_size):
                         break

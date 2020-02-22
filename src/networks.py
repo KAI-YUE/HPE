@@ -46,7 +46,8 @@ class HLoNet(nn.Module):
 
         y = self.Conv2(x)
 
-        return 2*torch.sigmoid(y) - 1
+        # return 2*torch.sigmoid(y) - 1
+        return y
 
 
 class PReNet(nn.Module):
@@ -75,9 +76,6 @@ class PReNet(nn.Module):
         # Output heatmaps and joint pos
         self.Conv_hm = Conv_ResnetBlock(128, 64, 21, stride=1) 
         
-        # self.Pos_Conv1 = Conv_ResnetBlock(128, 128, 128, stride=1)
-        # self.Pos_Conv2 = Conv_ResnetBlock(128, 128, 64, stride=2)
-        # self.Pos_fc = nn.Linear(64**3, 21*3) 
 
     def forward(self, x):
         x = self.Conv1(x)
@@ -94,15 +92,33 @@ class PReNet(nn.Module):
         x = self.ConvT4(torch.cat((x,x1), dim=1))
 
         hm = self.Conv_hm(x)
-        hm = torch.sigmoid(hm)
 
-        # pos = self.Pos_Conv1(x)
-        # pos = self.Pos_Conv2(pos)
-        # pos = self.Pos_fc(pos.view(pos.shape[0], -1))
-        pos = 0
+        return hm
 
-        return [hm, pos]
 
+class Regressor(nn.Module):
+    """
+    Regressor for 3d joint positions.
+    """
+    def __init__(self, in_dim, out_dim):
+        self.conv1 = nn.Conv2d(in_channels=in_dim, out_channels=64, kernel_size=3, stride=1, padding=1)
+        self.conv2 = nn.Conv2d(in_channels=64, out_channels=128, kernel_size=3, stride=1)
+        self.fc1 = nn.Linear(128**3, 4096)
+        self.fc2 = nn.Linear(4096, 256)
+        self.fc3 = nn.Linear(256, out_dim)
+
+    def forward(self, x):
+        x = F.relu(self.conv1(x))
+        x = F.batch_norm(x)
+        
+        x = F.relu(self.conv1(x))
+        x = F.batch_norm(x)
+
+        x = F.relu(self.fc1(x))
+        x = F.relu(self.fc2(x))
+        x = self.fc3(x)
+
+        return x
 
 class Conv_ResnetBlock(nn.Module):
     """

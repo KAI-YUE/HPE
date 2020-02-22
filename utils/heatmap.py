@@ -162,8 +162,3 @@ np.array([
 [255, 6, 3]], 
 dtype=np.uint8)
     
-if __name__ == '__main__':
-    sigma = 5
-    [x, y] = np.meshgrid(np.arange(-20, 21), np.arange(-20, 21))
-    z = np.exp(-(x**2+y**2)/(2*sigma**2))
-    heat_map = Heatmap(z)
