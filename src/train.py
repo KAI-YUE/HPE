@@ -53,7 +53,7 @@ def HLo_train(model, optimizer, device="cuda", epoch=-1):
             optimizer.zero_grad()
             
             image = data['img'].to(device)
-            heatmap = data['w'].to(device)
+            heatmap = data['hm'].to(device)
 
             # Get output and calculate loss
             output = model(image)
@@ -83,7 +83,7 @@ def HLo_train(model, optimizer, device="cuda", epoch=-1):
             with torch.no_grad():
 
                 image = data['img'].to(device)
-                heatmap = data['w'].to(device)
+                heatmap = data['hm'].to(device)
                 output = model(image)
 
                 save_sample(image, heatmap, output, epoch)
@@ -96,7 +96,7 @@ def HLo_train(model, optimizer, device="cuda", epoch=-1):
             with torch.no_grad():
                 for i, data in enumerate(val_loader, 0):
                     image = data['img'].to(device)
-                    heatmap = data['w'].to(device)
+                    heatmap = data['hm'].to(device)
                     output = model(image)
 
                     loss = L(output, heatmap)
@@ -156,7 +156,7 @@ def PRe_train(model, optimizer, device="cuda", epoch=-1):
 
             # Get output and calculate loss
             output = model(image)
-            loss = L(output, heatmap)
+            loss, pos_loss = L(output[0], output[1], heatmap, pos)
 
             # backward for generator
             loss.backward()
@@ -164,7 +164,7 @@ def PRe_train(model, optimizer, device="cuda", epoch=-1):
             
             # update the log
             if (config.log_interval and iteration % config.log_interval == 0):
-                logger.info("epoch {} iter {} loss {:.3f} ".format(epoch, iteration, loss))
+                logger.info("epoch {} iter {} loss {:.3f} pos_loss {:.3f}".format(epoch, iteration, loss, pos_loss))
             
             iteration += 1
 
@@ -189,8 +189,8 @@ def PRe_train(model, optimizer, device="cuda", epoch=-1):
 
                     output = model(image)
 
-                    loss = L(output, heatmap)
-                    logger.info("val loss {:.2f}".format(loss))
+                    loss = L(output[0], output[1], heatmap, pos)
+                    logger.info("val loss {:.2f} pos_loss {:.2f}".format(loss[0], loss[1]))
 
                     if (i > config.sample_size):
                         break

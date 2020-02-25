@@ -5,7 +5,7 @@ import torch.nn.functional as F
 from torch.nn.utils import spectral_norm
 
 class HLoNet(nn.Module):
-    def __init__(self, in_dim=3):
+    def __init__(self, in_dim=4):
         super(HLoNet, self).__init__()
 
         self.Conv1 = nn.Sequential( 
@@ -51,7 +51,7 @@ class HLoNet(nn.Module):
 
 
 class PReNet(nn.Module):
-    def __init__(self, in_dim=3):
+    def __init__(self, in_dim=4):
         super(PReNet, self).__init__()
 
         self.Conv1 = nn.Sequential( 
@@ -76,6 +76,9 @@ class PReNet(nn.Module):
         # Output heatmaps and joint pos
         self.Conv_hm = Conv_ResnetBlock(128, 64, 21, stride=1) 
         
+        self.Conv_pos = Conv_ResnetBlock(128, 128, 64, stride=2)
+        self.fc1 = nn.Linear(64**3, 512)
+        self.fc2 = nn.Linear(512, 21*3)
 
     def forward(self, x):
         x = self.Conv1(x)
@@ -93,7 +96,12 @@ class PReNet(nn.Module):
 
         hm = self.Conv_hm(x)
 
-        return hm
+        pos = self.Conv_pos(x)
+        pos = self.fc1(pos.view(pos.shape[0], -1))
+        pos = self.fc2(F.relu(pos))
+        pos = pos.view(pos.shape[0], 1, 21,3)
+        
+        return [hm, pos]
 
 
 class Regressor(nn.Module):

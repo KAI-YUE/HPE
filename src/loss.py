@@ -52,7 +52,7 @@ class PReCriterion(object):
         config = loadConfig()
         self.weights = config.loss_weights[1:]
 
-    def __call__(self, hm, gt_heatmap):
+    def __call__(self, hm, pos, gt_heatmap, gt_pos):
         """
         Get the Euclid distance^2 (L2 LOSS) between x and ground_truth heatmap 
         & L2 loss between predicted position and ground_truth pos.
@@ -66,7 +66,8 @@ class PReCriterion(object):
 
         assert(hm.shape == gt_heatmap.shape),  "Heatmap size mismatch!"
         
-        loss = self.weights[0] * 1/(hm.shape[0]) * torch.sum((hm - gt_heatmap)**2) 
+        loss1 = self.weights[0] * 1/(hm.shape[0]) * torch.sum((hm - gt_heatmap)**2) 
+        loss2 = self.weights[1] * 1/(hm.shape[0]) * torch.sum(torch.sqrt(torch.sum((pos-gt_pos)**2, dim=3)))
         # loss2 = 0
 
-        return loss
+        return loss1+loss2, loss2

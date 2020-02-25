@@ -39,10 +39,10 @@ def pre_process(image):
     """
     # RGB format
     if (len(image.shape) == 3):
-        mean = np.array([0.485, 0.456, 0.406]).reshape(1,1,3)
-        std = np.array([0.229, 0.224, 0.225]).reshape(1,1,3)
+        # mean = np.array([0.485, 0.456, 0.406]).reshape(1,1,3)
+        # std = np.array([0.229, 0.224, 0.225]).reshape(1,1,3)
         
-        image = (image - mean) / std
+        # image = (image - mean) / std
         image = image.transpose(2,0,1)
 
         return torch.from_numpy(image).to(torch.float32).view(1, image.shape[0], image.shape[1], image.shape[2]).to(torch.float32)
@@ -140,8 +140,8 @@ def save_sample(image, gt_heatmap, output, epoch=0, dir="./val_samples"):
     --------------------------------------------
     Args,
         image:        tensor (N x c x H x W), a batch of hand images,
-        gt_heatmap:   tensor (N x 1 x h x w), ground truth of the confidence map, to be upsampled. 
-        output:       tensor (N x 1 x h x w), predicted confidence map, to be upsampled.
+        gt_heatmap:   tensor (N x 1 x H x W), ground truth of the confidence map. 
+        output:       tensor (N x 1 x H x W), predicted confidence map.
         epoch:        integer. The training epoch used for file name. 
     """
 
@@ -153,13 +153,12 @@ def save_sample(image, gt_heatmap, output, epoch=0, dir="./val_samples"):
         heatmap = Heatmap(heatmap)
 
         pred = output[i, 0, ...].cpu().detach().numpy()
-        pred = cv2.resize(pred, (img.shape[1], img.shape[0]))
         pred = Heatmap(pred)
 
         alpha = 0.6
         output_image = np.hstack((alpha*img + (1-alpha)*heatmap, alpha*img + (1-alpha)*pred))
 
-        cv2.imwrite(os.path.join(dir, "smaple_{}_{}.jpg".format(epoch, i)), output_image)
+        cv2.imwrite(os.path.join(dir, "sample_{}_{}.jpg".format(epoch, i)), output_image)
 
 
 def save_model(file_name, model, optimizer, epoch=0, max_save=5):

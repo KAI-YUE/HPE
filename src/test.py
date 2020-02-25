@@ -85,7 +85,7 @@ def HLo_test(model, output_dir, device="cuda", mode=0):
                     break
 
     elif mode == 1:
-        
+        root_index = 9
         already_sampled = 0
 
         for root, dirs, files in os.walk(config.test_dir):
@@ -101,15 +101,17 @@ def HLo_test(model, output_dir, device="cuda", mode=0):
                         a_set = pickle.load(fp)
 
                     img = a_set["img"]
+                    depth = a_set["depth_norm"]
                     _2d_pos = a_set["2d_pos"]
 
-                    Tensor_img = pre_process(img).to(device)
+                    Tensor_img = torch.from_numpy(np.dstack((depth,img)).transpose((2,0,1))).to(torch.float32)
+                    Tensor_img = Tensor_img[None,...].to(device)
 
                     result = model(Tensor_img)
                     center = center_from_heatmap(result.squeeze())
                     result = result.cpu().detach().squeeze().numpy()
                     
-                    error = np.sqrt(np.sum((center - _2d_pos[0])**2))
+                    error = np.sqrt(np.sum((center - _2d_pos[root_index])**2))
 
                     heatmap = Heatmap(result)
                     composite = 255 * alpha * img + (1 - alpha) * heatmap

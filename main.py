@@ -73,17 +73,18 @@ def main(mode=None, model_path=None):
             
             # Load the model and optimizer from the stored state_dict
             model.load_state_dict(state_dict['model'], strict=False)
-            # optimizer.load_state_dict(state_dict['optimizer'], strict=False)
+            optimizer.load_state_dict(state_dict['optimizer'])
             optimizer.lr = config.learning_rate
 
-
+            epoch = state_dict['epoch']
+            del state_dict
             # Freeze certain layers
             # freeze_layers(model, 11)
 
             if mode == 2:
-                HLo_train(model, optimizer, device, state_dict['epoch'])
+                HLo_train(model, optimizer, device, epoch)
             elif mode == 3:
-                PRe_train(model, optimizer, device, state_dict['epoch'])       
+                PRe_train(model, optimizer, device, epoch)       
         
         elif (mode < 6):
             model = HLoNet() if mode == 4 else PReNet()

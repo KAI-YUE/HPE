@@ -27,10 +27,7 @@ class HLoDataset(Dataset):
                 for f in files:
                     if "dat" in f:
                         self.ImageList.append(os.path.join(root, f))
-        
-        self.mean = torch.tensor([0.485, 0.456, 0.406]).view(3,1,1)
-        self.std = torch.tensor([0.229, 0.224, 0.225]).view(3,1,1)
-        
+                
     def __len__(self):
         return len(self.ImageList)
     
@@ -38,15 +35,14 @@ class HLoDataset(Dataset):
         with open(self.ImageList[idx], 'rb') as fp:
             a_set = pickle.load(fp) 
 
-        Img = a_set["img"].transpose((2, 0, 1))
+        Img = np.dstack((a_set["depth_norm"], a_set["img"]))
+        Img = Img.transpose((2,0,1))
         Img = torch.from_numpy(Img).to(torch.float32)
-        Img = (Img - self.mean)/self.std
 
-        wrist = a_set["W_hm"].astype('float32')
-        wrist = torch.from_numpy(wrist)
-        wrist = wrist.view(-1, wrist.shape[0], wrist.shape[1])
+        hm = a_set["root_hm"].astype('float32')
+        hm = torch.from_numpy(hm)[None,...]
 
-        return dict(img=Img, w=wrist)
+        return dict(img=Img, hm=hm)
 
     def create_iterator(self, batch_size=1):
         while True:
@@ -87,12 +83,15 @@ class PReDataset(Dataset):
         with open(self.ImageList[idx], 'rb') as fp:
             a_set = pickle.load(fp) 
 
-        ROI = a_set["ROI"].astype("int")
-        Img = a_set["img"][ROI[0]:ROI[1], ROI[2]:ROI[3]].transpose((2, 0, 1))
-
-        Img = torch.from_numpy(Img.astype('float32'))
-        Img = F.interpolate(Img[None, ...], self.img_size)[0]
-        Img = (Img - self.mean)/self.std
+        # ROI = a_set["ROI"].astype("int")
+        # img = a_set["img"][ROI[0]:ROI[1], ROI[2]:ROI[3]]
+        # depth = a_set["depth_norm"][ROI[0]:ROI[1], ROI[2]:ROI[3]]
+        # Img = np.dstack((depth, img)).transpose((2,0,1))
+        # Img = torch.from_numpy(Img).to(torch.float32)
+        # Img = F.interpolate(Img[None, ...], self.img_size, mode="bilinear")[0]
+        img = a_set["cropped_img"]
+        depth = a_set["cropped_depth"]
+        Img = torch.from_numpy(np.dstack((depth, img)).transpose((2,0,1))).to(torch.float32)
         
         # Heatmaps of different parts
         hm = torch.from_numpy(a_set["heatmaps"]).to(torch.float32)
