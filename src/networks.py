@@ -74,11 +74,30 @@ class PReNet(nn.Module):
         self.ConvT4 = ConvTransBlock(256+128, 128, kernel=3, stride=1, padding=1)
 
         # Output heatmaps and joint pos
-        self.Conv_hm = Conv_ResnetBlock(128, 64, 21, stride=1) 
+        # self.Conv_hm = Conv_ResnetBlock(128, 64, 21, stride=1) 
         
-        self.Conv_pos = Conv_ResnetBlock(128, 128, 64, stride=2)
-        self.fc1 = nn.Linear(64**3, 512)
-        self.fc2 = nn.Linear(512, 21*3)
+        self.Conv_theta1 = Conv_ResnetBlock(128, 128, 64, stride=2)
+        self.Conv_theta2 = nn.Sequential(
+            nn.Conv2d(in_channels=64, out_channels=64, kernel_size=3, stride=2, padding=1),
+            nn.BatchNorm2d(64),
+            nn.ReLU()
+        )
+        self.fc_theta1 = nn.Linear(64*32**2, 256)
+        self.fc_theta2 = nn.Linear(256, 21)
+        
+        self.fc_scale1 = nn.Linear(64*32**2, 256)
+        self.fc_scale2 = nn.Linear(256, 21)
+
+        self.phalanges_arr = \ 
+            torch.tensor([40.712, 34.040, 29.417, 26.423,
+                          79.706, 35.224, 23.270, 22.036,
+                          )
+
+    def forward_kinematics(self, theta):
+        """
+        Derive the 3d positions with forward kinematics.
+        """
+
 
     def forward(self, x):
         x = self.Conv1(x)
@@ -94,12 +113,14 @@ class PReNet(nn.Module):
         x = self.ConvT3(torch.cat((x,x2), dim=1))
         x = self.ConvT4(torch.cat((x,x1), dim=1))
 
-        hm = self.Conv_hm(x)
+        # hm = self.Conv_hm(x)
+        hm = 0
 
-        pos = self.Conv_pos(x)
-        pos = self.fc1(pos.view(pos.shape[0], -1))
-        pos = self.fc2(F.relu(pos))
-        pos = pos.view(pos.shape[0], 1, 21,3)
+        theta = self.Conv_theta1(x)
+        theta = self.Conv_theta2(theta)
+        theta = self.fc1(theta.view(theta.shape[0], -1))
+        theta = self.fc2(F.relu(theta))
+        pos = self.forward_kinematics(theta)
         
         return [hm, pos]
 
