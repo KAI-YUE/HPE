@@ -83,17 +83,16 @@ class PReNet(nn.Module):
             nn.ReLU()
         )
         self.fc_theta1 = nn.Linear(64*32**2, 256)
-        self.fc_theta2 = nn.Linear(256, 23)
+        self.fc_theta2 = nn.Linear(256, 24)
         
         self.fc_scale1 = nn.Linear(64*32**2, 256)
         self.fc_scale2 = nn.Linear(256, 20)
 
-        self.phalanges_arr = \ 
-            torch.tensor([40.712, 34.040, 29.417, 26.423,
-                          79.706, 35.224, 23.270, 22.036,
-                          75.669, 41.975, 26.329, 24.504,
-                          75.358, 39.978, 23.513, 22.647,
-                          74.556, 27.541, 19.826, 20.395])
+        self.phalanges_arr =  torch.tensor([40.712, 34.040, 29.417, 26.423,
+                                            79.706, 35.224, 23.270, 22.036,
+                                            75.669, 41.975, 26.329, 24.504,
+                                            75.358, 39.978, 23.513, 22.647,
+                                            74.556, 27.541, 19.826, 20.395])
 
     def forward_kinematics(self, scale, theta):
         """
@@ -103,43 +102,50 @@ class PReNet(nn.Module):
         p0 = torch.tensor([0., 0., 0., 1.])
 
         # For each sample
-        j = 0
+        
         for i in range(theta.shape[0]):
+            j = 0
             # Thumb kinematics
             z = self.z_matrix(theta[i,0])
-            x = self.x_matrix(theta[i,1], scale[j]*self.phalanges_arr[j])
+            x = self.x_matrix(theta[i,1], scale[i, j]*self.phalanges_arr[j])
             j += 1
             T = z @ x
-            pos[i,0] = T @ p0 [:3]
+            pos[i,0] = (T @ p0) [:3]
 
             z = self.z_matrix(theta[i,2])
-            x = self.x_matrix(theta[i,3], scale[j]*self.phalanges_arr[j])
+            x = self.x_matrix(theta[i,3], scale[i, j]*self.phalanges_arr[j])
             j += 1
             T = T @ z @ x
-            pos[i,1] = T @ p0 [:3]
+            pos[i,1] = (T @ p0) [:3]
 
             z = self.z_matrix(theta[i,4])
-            x = self.x_matrix(0, scale[j]*self.phalanges_arr[j])
+            x = self.x_matrix(torch.tensor(0.), scale[i, j]*self.phalanges_arr[j])
             j += 1
             T = T @ z @ x
-            pos[i,2] = T @ p0 [:3]
+            pos[i,2] = (T @ p0) [:3]
 
             z = self.z_matrix(theta[i,5])
-            x = self.x_matrix(0, scale[j]*self.phalanges_arr[j])
+            x = self.x_matrix(torch.tensor(0.), scale[i, j]*self.phalanges_arr[j])
             j += 1
             T = T @ z @ x
-            pos[i,3] = T @ p0 [:3]
+            pos[i,3] = (T @ p0) [:3]
 
             # Finger kinematics
-            T = torch.identity(4)
             for k in range(4):
-                z = self.z_matrix(theta[i,k+5])
-                x = self.x_matrix(theta[i,k+6], scale[j]*self.phalanges_arr[j])
+                z = self.z_matrix(theta[i,4*k+5])
+                x = self.x_matrix(theta[i,4*k+6], scale[i, j]*self.phalanges_arr[j])
                 j += 1
                 T = z @ x
-                pos[i,4] = T @ p0 [:3]
+                pos[i,4*k+4] = (T @ p0) [:3]
 
+                for l in range(2):
+                    z = self.z_matrix(theta[i,4*k+7+l])
+                    x = self.x_matrix(torch.tensor(0.), scale[i, j]*self.phalanges_arr[j])
+                    j += 1
+                    T = T @ z @ x
+                    pos[i,4*k+5+l] = (T @ p0) [:3]
 
+        return pos
 
     def forward(self, x):
         x = self.Conv1(x)
@@ -158,8 +164,8 @@ class PReNet(nn.Module):
         # hm = self.Conv_hm(x)
         hm = 0
 
-        x = self.Conv_theta1(x)
-        x = self.Conv_theta2(x)
+        x = self.Conv_Pos1(x)
+        x = self.Conv_Pos2(x)
         
         theta = self.fc_theta1(x.view(x.shape[0], -1))
         theta = 3.14*F.sigmoid(self.fc_theta2(F.relu(theta)))
@@ -171,22 +177,23 @@ class PReNet(nn.Module):
         return [hm, pos]
 
     @ staticmethod
-    def z_matrix(self, theta, d=0):
+    def z_matrix(theta, d=0):
         """
         Return the z matrix given the D-H parameter.
         """
         return torch.tensor([[torch.cos(theta), -torch.sin(theta), 0, 0],
-                              [np.sin(theta), np.cos(theta), 0, 0],
+                              [torch.sin(theta), torch.cos(theta), 0, 0],
                               [0, 0, 1, d],
                               [0, 0, 0, 1]])
 
-    def x_matrix(self, alpha, a=0):
+    @ staticmethod
+    def x_matrix(alpha, a=0):
         """
         Return the x matrix given the D-H parameter.
         """
         return torch.tensor([[1, 0, 0, a],
-                            [0, np.cos(alpha), -np.sin(alpha), 0],
-                            [0, np.sin(alpha), np.cos(alpha), 0],
+                            [0, torch.cos(alpha), -torch.sin(alpha), 0],
+                            [0, torch.sin(alpha), torch.cos(alpha), 0],
                             [0, 0, 0, 1]])
 
 class Regressor(nn.Module):
