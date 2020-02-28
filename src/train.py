@@ -142,7 +142,7 @@ def PRe_train(model, optimizer, device="cuda", epoch=-1):
     logger.addHandler(sh)
     logger.info("-"*80)
 
-    
+    prev = 0
     while (epoch < config.max_epoch):
         epoch += 1
         iteration = 0
@@ -156,7 +156,7 @@ def PRe_train(model, optimizer, device="cuda", epoch=-1):
 
             # Get output and calculate loss
             output = model(image)
-            loss, pos_loss = L(output[0], output[1], heatmap, pos)
+            loss, pos_loss = L(output[0], output[1].to(device), heatmap, pos)
 
             # backward for generator
             loss.backward()
@@ -165,7 +165,15 @@ def PRe_train(model, optimizer, device="cuda", epoch=-1):
             # update the log
             if (config.log_interval and iteration % config.log_interval == 0):
                 logger.info("epoch {} iter {} loss {:.3f} pos_loss {:.3f}".format(epoch, iteration, loss, pos_loss))
-            
+                for p in model.Conv1[0].parameters():
+                    if p.requires_grad:
+                        if (p.data == prev).all():
+                            print(True)
+                        else:
+                            prev = p.data
+                            print(False)
+                    break
+
             iteration += 1
 
             # if (iteration > 5):

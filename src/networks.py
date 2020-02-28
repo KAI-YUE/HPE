@@ -145,7 +145,7 @@ class PReNet(nn.Module):
                     T = T @ z @ x
                     pos[i,4*k+5+l] = (T @ p0) [:3]
 
-        return pos
+        return pos[:,None,...]
 
     def forward(self, x):
         x = self.Conv1(x)
@@ -184,7 +184,7 @@ class PReNet(nn.Module):
         return torch.tensor([[torch.cos(theta), -torch.sin(theta), 0, 0],
                               [torch.sin(theta), torch.cos(theta), 0, 0],
                               [0, 0, 1, d],
-                              [0, 0, 0, 1]])
+                              [0, 0, 0, 1]], requires_grad=True)
 
     @ staticmethod
     def x_matrix(alpha, a=0):
@@ -194,7 +194,7 @@ class PReNet(nn.Module):
         return torch.tensor([[1, 0, 0, a],
                             [0, torch.cos(alpha), -torch.sin(alpha), 0],
                             [0, torch.sin(alpha), torch.cos(alpha), 0],
-                            [0, 0, 0, 1]])
+                            [0, 0, 0, 1]], requires_grad=True)
 
 class Regressor(nn.Module):
     """
