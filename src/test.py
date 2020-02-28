@@ -143,8 +143,9 @@ def PRe_test(model, output_dir, device="cuda"):
 
     # Plot rows x cols to show results
     plot_rows = 4
-    plot_cols = 6
+    plot_cols = 7
     num_parts = 21
+    root_index = 9
 
     for root, dirs, files in os.walk(config.test_dir):
 
@@ -158,27 +159,37 @@ def PRe_test(model, output_dir, device="cuda"):
                 with open(os.path.join(root, f), "rb") as fp:
                     a_set = pickle.load(fp)
                 
-                ROI = a_set["ROI"].astype("int")
-                img = a_set["img"][ROI[0]:ROI[1], ROI[2]:ROI[3]].astype(np.float32)
-                img = cv2.resize(img, cropped_size, interpolation=cv2.INTER_NEAREST)
-                depth = a_set["depth"][ROI[0]:ROI[1], ROI[2]:ROI[3]]
-                depth = cv2.resize(depth, cropped_size, interpolation=cv2.INTER_NEAREST)
+                # ROI = a_set["ROI"].astype("int")
+                # img = a_set["img"][ROI[0]:ROI[1], ROI[2]:ROI[3]].astype(np.float32)
+                # img = cv2.resize(img, cropped_size, interpolation=cv2.INTER_NEAREST)
+                # depth = a_set["depth"][ROI[0]:ROI[1], ROI[2]:ROI[3]]
+                # depth = cv2.resize(depth, cropped_size, interpolation=cv2.INTER_NEAREST)
 
-                Tensor_img = pre_process(img).to(device)
-                Tensor_hm = torch.from_numpy(a_set["heatmaps"]).to(torch.float32).to(device)
-                Tensor_hm = Tensor_hm[None, ...]
-                Tensor_pos = torch.from_numpy(a_set["3d_pos"])
+                # Tensor_img = pre_process(img).to(device)
+                # Tensor_hm = torch.from_numpy(a_set["heatmaps"]).to(torch.float32).to(device)
+                # Tensor_hm = Tensor_hm[None, ...]
+                # Tensor_pos = torch.from_numpy(a_set["3d_pos"])
 
-                result = model(Tensor_img)
+                ROI = a_set["ROI"]
+                img = a_set["cropped_img"]
+                depth = a_set["cropped_depth"]
+                Img = torch.from_numpy(np.dstack((depth, img)).transpose((2,0,1))).to(torch.float32)
+                Img = Img[None, ...].to(device)
 
-                hms = result.cpu().detach().numpy().squeeze()
-                pos_arr = pos_from_heatmap(hms, depth, ROI)
+                root_pos = a_set["root_pos"]
+                pos = a_set["3d_pos"]
+                gt_pos = 1000*pos + root_pos
+
+                Tensor_hms, Tensor_pos = model(Img)
+
+                hms = Tensor_hms.cpu().detach().numpy().squeeze()
 
                 # Plot the result 
                 img = (255*img).astype("uint8")
                 fig, axs = plt.subplots(nrows=plot_rows, ncols=plot_cols, figsize=(20, 15))
                 counter = 0
-                for r in range(plot_rows):
+                break_flag = False
+                for r in range(1,plot_rows):
                     for c in range(plot_cols):
                         hm = cv2.resize(hms[counter], tuple(config.cropped_size))
                         heatmap = Heatmap(hm)
@@ -190,41 +201,49 @@ def PRe_test(model, output_dir, device="cuda"):
                         
                         counter += 1
                         if counter == num_parts:
+                            break_flag = True
                             break
+
+                    if (break_flag == True):
+                        break
 
                 # # plot the original hand image
                 # axs[-1, 3].set_axis_off()
                 # axs[-1, 3].imshow(img)
-                
-                # Calculate the 3d position
-                pos_in_ori = pos_arr.copy()
-                pos_in_ori[:,0] += ROI[2]
-                pos_in_ori[:,1] += ROI[0]
-                depth = a_set["depth"]
-                _3d_pos = np.zeros((num_parts,3))
-                for i in range(num_parts):
-                    _3d_pos[i] = back_project(pos_in_ori[i], depth[pos_in_ori[i,1], pos_in_ori[i,0]])
-                
-                _3d_error = np.mean( np.sqrt(np.sum( (_3d_pos-(a_set["3d_pos"] + a_set["wrist_pos"]))**2, axis=1 )) )
-
+                                
                 # Plot the 2-D links results
-                axs[-1, 3].set_axis_off()
-                axs[-1, 3].set_title("Filter {:.2f}".format(_3d_error))  
-                plot_joint(img, pos_arr, axs[-1, 3])
+                axs[0, 3].set_axis_off()
+                axs[0, 3].set_title("Original")  
+                axs[0,3].imshow((255*a_set["img"]).astype("uint8"))
                 
                 # Plot the link results with naive method
                 pos_arr_ = naive_pos_from_heatmap(hms)
-                axs[-1,4].set_axis_off()
-                axs[-1,4].set_title("Direct Pred")
+                axs[0,4].set_axis_off()
+                axs[0,4].set_title("2d Pred")
                 plot_joint(img, pos_arr_, axs[-1,4])
+                
+                # Calculate the 3d pos distance and plot the projection of 3d pos
+                pred_root_pos = pos_arr_[root_index]
+                pred_root_pos[0] = pred_root_pos[0]/a_set["scale_factors"][1] + ROI[2]
+                pred_root_pos[1] = pred_root_pos[1]/a_set["scale_factors"][0] + ROI[0]
+                pred_3d_root_pos = back_project(pred_root_pos, a_set["depth"][pred_root_pos[1], pred_root_pos[0]])
+
+                pos_arr_ = 1000*Tensor_pos.cpu().detach().numpy().squeeze() + pred_3d_root_pos
+                _3d_error = np.mean( np.sqrt(np.sum( (_3d_pos-gt_pos)**2, axis=1 )) )
+                pos_arr_[:,0] -= ROI[2]
+                pos_arr_[:,1] -= ROI[0]
+                pos_arr_ = project2plane(pos_arr_)
+
+                axs[0,5].set_axis_off()
+                axs[0,5].set_title()
 
                 # Plot the original link results
-                axs[-1, 5].set_axis_off()
-                axs[-1, 5].set_title("Ground Truth")  
+                axs[0,6].set_axis_off()
+                axs[0,6].set_title("Ground Truth")  
                 _2d_pos = a_set["2d_pos"]
                 _2d_pos[:,0] = (_2d_pos[:,0] - ROI[2]) * a_set["scale_factors"][1]
                 _2d_pos[:,1] = (_2d_pos[:,1] - ROI[0])* a_set["scale_factors"][0]
-                plot_joint(img, _2d_pos, axs[-1, 5])
+                plot_joint(img, _2d_pos, axs[-1, 6])
 
                 fig.savefig(os.path.join(new_dir, f[:8] + ".jpg"))
                 np.save(os.path.join(new_dir, f[:8] + "hm.npy"), hms)
