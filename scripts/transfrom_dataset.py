@@ -12,8 +12,8 @@ import pickle
 import numpy as np
 
 # My Libraries
-#from utils.heatmap import Gaussian_heatmap
-#from utils.hand_region import ROI_Hand, ROI_from_pos    
+from utils.heatmap import Gaussian_heatmap
+from utils.hand_region import ROI_Hand, ROI_from_pos    
 
 f_x = 475.62
 f_y = 475.62
@@ -39,8 +39,16 @@ def trans_SynthHands(src_dir, dst_dir):
         src_dir:    the root directory of the synthhand dataset.
         dst_dir:    the directory of the transfromed dataset.
     """
+    f_x = 475.62
+    f_y = 475.62
+    x_0 = 311.125
+    y_0 = 245.965
+
+    num_parts = 21
+    root_index = 9
     crop_size = 128
-    wrist_hm_size = (320, 240)
+    depth_max = 1000
+    pos_scale = 1000
     template = np.zeros((crop_size, crop_size, 3), dtype="uint8")
 
     for root, dirs, files in os.walk(src_dir):
@@ -72,30 +80,28 @@ def trans_SynthHands(src_dir, dst_dir):
                         projected_pos[i, 1] = 0.5*(f_y / pos[i, 2] * pos[i, 1] + y_0)
                         
                     img_name = f.replace("joint_pos.txt", "color_on_depth.png")
-                    color_on_depth = cv2.imread(os.path.join(root, img_name))[..., ::-1]
+                    color_on_depth = cv2.imread(os.path.join(root, img_name))
                     [h, w] = [int(0.5*color_on_depth.shape[0]), int(0.5*color_on_depth.shape[1])]
                     color_on_depth = cv2.resize(color_on_depth, (w, h))
                     
                     # Save img, pos and all of the heatmap ground truth in a dict 
-                    dat_dict = {"img":(color_on_depth/255).astype(np.float16)}
+                    dat_dict = {"img":(color_on_depth[:,:,::-1]/255).astype(np.float16)}
                     
                     # Read depth image 
                     depth_name = f.replace("joint_pos.txt", "depth.png")
                     depth = cv2.imread(os.path.join(root, depth_name), -1)
-                    depth = cv2.resize(depth, (w, h), interpolation=CV_INTER_NEAREST)
-                    depth = np.where(depth > max_depth, max_depth, depth)
+                    depth = cv2.resize(depth, (w, h), interpolation=cv2.INTER_NEAREST)
+                    depth_min = np.min(depth)
+                    
                     dat_dict['depth'] = depth
+                    depth_norm = np.where(depth>depth_max, 1, (depth - depth_min)/(depth_max-depth_min))
+                    dat_dict['depth_norm'] = depth_norm.astype("float16")
                     
-                    # Normalize depth to [-1,1]
-                    min_depth = np.min(depth)
-                    norm_depth = np.where(depth > max_depth, max_depth, depth)
-                    norm_depth = (norm_depth - min_depth) / (max_depth - min_depth)
-                    dat_dict["norm_depth"] = (2*norm_depth - 1).astype("float16")
+                    a_set = Gaussian_heatmap(color_on_depth, projected_pos[root_index])
+                    dat_dict["root_hm"] = a_set["confidence_map"].astype(np.float16)
                     
-                    wrist_set = Gaussian_heatmap(color_on_depth, projected_pos[0])
-                    dat_dict["W_hm"] = wrist_set["confidence_map"].astype(np.float16)
-                    
-                    ROI = ROI_from_pos(projected_pos).astype("int")
+                    # ROI = ROI_from_pos(projected_pos)
+                    ROI, mean_depth = ROI_Hand(color_on_depth, depth, projected_pos[root_index])
                     
                     if (ROI[1] - ROI[0] > crop_size):
                         row_scale = crop_size / (ROI[1] - ROI[0]) 
@@ -109,20 +115,49 @@ def trans_SynthHands(src_dir, dst_dir):
                     
                     dat_dict["scale_factors"] = np.array([row_scale, col_scale], dtype="float16")
                     
-                    hm = np.zeros((21, crop_size, crop_size), dtype="float16")
+                    hms = np.zeros((21, crop_size, crop_size), dtype="float16")
                     for i in range(num_parts):             
                         results = Gaussian_heatmap(template, 
                                                 [int((projected_pos[i, 0]-ROI[2])*col_scale), 
-                                                    int(projected_pos[i, 1]-ROI[0])*row_scale])
-                        hm[i] = results["confidence_map"]
+                                                    int((projected_pos[i, 1]-ROI[0])*row_scale)])
+                        hms[i] = results["confidence_map"]
                     
-                    dat_dict["heatmaps"] = hm
-                    dat_dict["wrist_pos"] = pos[0].copy()
+                    cropped_img= cv2.resize(color_on_depth[ROI[0]:ROI[1], ROI[2]:ROI[3]], 
+                                                        (crop_size,crop_size))
+                    dat_dict["cropped_img"] = (cropped_img[...,::-1]/255).astype("float16")
                     
-                    pos -= pos[0]
-                    dat_dict["3d_pos"] = pos
+                    cropped_depth = cv2.resize(depth[ROI[0]:ROI[1], ROI[2]:ROI[3]], (crop_size, crop_size), interpolation=cv2.INTER_NEAREST)
+                    cropped_depth = np.where(cropped_depth>depth_max, 1, (cropped_depth - mean_depth) / depth_max)
+                    dat_dict["cropped_depth"] = cropped_depth.astype("float16")
+                    
+                    dat_dict["heatmaps"] = hms
+                    dat_dict["root_pos"] = pos[root_index].copy()
+                    
+                    _05_vec = pos[5] 
+                    _09_vec = pos[9]
+                    z_body_frame = np.cross(_05_vec, _09_vec)
+                    
+                    # Normalize the y axis and z axis in the body frame
+                    y_body_frame = _09_vec / np.linalg.norm(_09_vec)
+                    z_body_frame = z_body_frame / np.linalg.norm(z_body_frame)
+                    x_body_frame = np.cross(y_body_frame, z_body_frame).reshape(-1,1)
+                    
+                    y_body_frame = y_body_frame.reshape((-1,1))
+                    z_body_frame = z_body_frame.reshape((-1,1))
+                    
+                    R = np.array([[0,0,1],[1,0,0],[0,1,0]]) @ \
+                        np.hstack((y_body_frame, z_body_frame, x_body_frame)).T
+                        
+                    norm_3d_pos = np.zeros_like(pos)
+                    for i in range(1, norm_3d_pos.shape[0]):
+                        norm_3d_pos[i] = R @ pos[i]
+                        
+                    a_set["norm_3d_pos"] = norm_3d_pos.astype("float16")
+                        
+                    pos -= pos[root_index]
+                    dat_dict["3d_pos"] = (pos/pos_scale).astype("float16")
                     dat_dict["2d_pos"] = projected_pos
-                    dat_dict["ROI"] = ROI
+                    dat_dict["ROI"] = ROI.astype("int16")
                     
                     with open(os.path.join(new_path, f.replace("_joint_pos.txt", ".dat")), 'wb') as fp:
                         pickle.dump(dat_dict, fp)

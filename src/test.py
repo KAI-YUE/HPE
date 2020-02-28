@@ -211,42 +211,47 @@ def PRe_test(model, output_dir, device="cuda"):
                 # axs[-1, 3].set_axis_off()
                 # axs[-1, 3].imshow(img)
                                 
-                # Plot the 2-D links results
-                axs[0, 3].set_axis_off()
-                axs[0, 3].set_title("Original")  
-                axs[0,3].imshow((255*a_set["img"]).astype("uint8"))
+                # Plot the original image
+                axs[0,1].set_axis_off()
+                axs[0,1].set_title("Original")  
+                axs[0,1].imshow((255*a_set["img"]).astype("uint8"))
                 
                 # Plot the link results with naive method
-                pos_arr_ = naive_pos_from_heatmap(hms)
+                _2d_pos_arr_ = naive_pos_from_heatmap(hms)
                 axs[0,4].set_axis_off()
-                axs[0,4].set_title("2d Pred")
-                plot_joint(img, pos_arr_, axs[-1,4])
-                
+                plot_joint(img, _2d_pos_arr_, axs[0,4])
+
+                _2d_pos_arr_[:,0] = _2d_pos_arr_[:,0]/a_set["scale_factors"][1] + ROI[2]
+                _2d_pos_arr_[:,1] = _2d_pos_arr_[:,1]/a_set["scale_factors"][1] + ROI[0]
+                _2d_error = np.mean(np.sqrt(np.sum((_2d_pos_arr_-a_set["2d_pos"])**2, axis=1)))
+                axs[0,4].set_title("2d Pred {:.02f}".format(_2d_error))
+
                 # Calculate the 3d pos distance and plot the projection of 3d pos
-                pred_root_pos = pos_arr_[root_index]
-                pred_root_pos[0] = pred_root_pos[0]/a_set["scale_factors"][1] + ROI[2]
-                pred_root_pos[1] = pred_root_pos[1]/a_set["scale_factors"][0] + ROI[0]
+                pred_root_pos = _2d_pos_arr_[root_index].astype("int")
                 pred_3d_root_pos = back_project(pred_root_pos, a_set["depth"][pred_root_pos[1], pred_root_pos[0]])
 
-                pos_arr_ = 1000*Tensor_pos.cpu().detach().numpy().squeeze() + pred_3d_root_pos
-                _3d_error = np.mean( np.sqrt(np.sum( (_3d_pos-gt_pos)**2, axis=1 )) )
-                pos_arr_[:,0] -= ROI[2]
-                pos_arr_[:,1] -= ROI[0]
-                pos_arr_ = project2plane(pos_arr_)
+                _3d_pos_arr_ = 1000*Tensor_pos.cpu().detach().numpy().squeeze() + a_set["root_pos"]
+                _3d_error = np.mean( np.sqrt(np.sum( (_3d_pos_arr_-gt_pos)**2, axis=1 )) )
+                _3d_pos_arr_ = project2plane(_3d_pos_arr_)
+                _3d_pos_arr_[:,0] = (_3d_pos_arr_[:,0] - ROI[2])*a_set["scale_factors"][1]
+                _3d_pos_arr_[:,1] = (_3d_pos_arr_[:,1] - ROI[0])*a_set["scale_factors"][0]
 
                 axs[0,5].set_axis_off()
-                axs[0,5].set_title()
+                axs[0,5].set_title("3d Pred {:.2f}".format(_3d_error))
+                plot_joint(img, _3d_pos_arr_, axs[0,5])
 
                 # Plot the original link results
+                ori_error = 1000* np.mean( np.sqrt(np.sum( (Tensor_pos.cpu().detach().numpy().squeeze()-a_set["3d_pos"])**2, axis=1 )) )
+
                 axs[0,6].set_axis_off()
-                axs[0,6].set_title("Ground Truth")  
+                axs[0,6].set_title("Ground Truth {:.2f}".format(ori_error))  
                 _2d_pos = a_set["2d_pos"]
                 _2d_pos[:,0] = (_2d_pos[:,0] - ROI[2]) * a_set["scale_factors"][1]
                 _2d_pos[:,1] = (_2d_pos[:,1] - ROI[0])* a_set["scale_factors"][0]
-                plot_joint(img, _2d_pos, axs[-1, 6])
+                plot_joint(img, _2d_pos, axs[0, 6])
 
                 fig.savefig(os.path.join(new_dir, f[:8] + ".jpg"))
-                np.save(os.path.join(new_dir, f[:8] + "hm.npy"), hms)
+                # np.save(os.path.join(new_dir, f[:8] + "hm.npy"), hms)
 
                 plt.close(fig)
                 sampled_in_folder += 1
