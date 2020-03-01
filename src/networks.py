@@ -168,10 +168,10 @@ class PReNet(nn.Module):
         x = self.Conv_Pos2(x)
         
         theta = self.fc_theta1(x.view(x.shape[0], -1))
-        theta = 3.14*F.sigmoid(self.fc_theta2(F.relu(theta)))
+        theta = 3.14*torch.sigmoid(self.fc_theta2(F.relu(theta)))
 
         scale = self.fc_scale1(x.view(x.shape[0], -1))
-        scale = F.relu(self.fc_scale2(F.relu(scale)))
+        scale = F.relu(self.fc_scale2(F.relu(scale))) + 0.01
         pos = self.forward_kinematics(scale, theta)
         
         return [hm, pos]
@@ -180,21 +180,29 @@ class PReNet(nn.Module):
     def z_matrix(theta, d=0):
         """
         Return the z matrix given the D-H parameter.
+        To guarantee the gradient calculation, we assign the value manually.
         """
-        return torch.tensor([[torch.cos(theta), -torch.sin(theta), 0, 0],
-                              [torch.sin(theta), torch.cos(theta), 0, 0],
-                              [0, 0, 1, d],
-                              [0, 0, 0, 1]], requires_grad=True)
+        z = torch.eye(4)
+        z[0][0] = torch.cos(theta)
+        z[0][1] = -torch.sin(theta)
+        z[1][0] = torch.sin(theta)
+        z[1][1] = torch.cos(theta)
+        z[2][3] = d
+        return z
 
     @ staticmethod
     def x_matrix(alpha, a=0):
         """
         Return the x matrix given the D-H parameter.
+        To guarantee the gradient calculation, we assign the value manually.
         """
-        return torch.tensor([[1, 0, 0, a],
-                            [0, torch.cos(alpha), -torch.sin(alpha), 0],
-                            [0, torch.sin(alpha), torch.cos(alpha), 0],
-                            [0, 0, 0, 1]], requires_grad=True)
+        x = torch.eye(4)
+        x[0][3] = a
+        x[1][1] = torch.cos(alpha)
+        x[1][2] = -torch.sin(alpha)
+        x[2][1] = torch.sin(alpha)
+        x[2][2] = torch.cos(alpha)
+        return x
 
 class Regressor(nn.Module):
     """
