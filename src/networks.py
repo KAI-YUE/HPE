@@ -74,7 +74,7 @@ class PReNet(nn.Module):
         self.ConvT4 = ConvTransBlock(256+128, 128, kernel=3, stride=1, padding=1)
 
         # Output heatmaps and joint pos
-        # self.Conv_hm = Conv_ResnetBlock(128, 64, 21, stride=1) 
+        self.Conv_hm = Conv_ResnetBlock(128, 64, 21, stride=1) 
         
         self.Conv_Pos1 = Conv_ResnetBlock(128, 128, 64, stride=2)
         self.Conv_Pos2 = nn.Sequential(
@@ -161,6 +161,7 @@ class PReNet(nn.Module):
         x = self.ConvT3(torch.cat((x,x2), dim=1))
         x = self.ConvT4(torch.cat((x,x1), dim=1))
 
+<<<<<<< HEAD
         # hm = self.Conv_hm(x)
         hm = 0
 
@@ -203,6 +204,17 @@ class PReNet(nn.Module):
         x[2][1] = torch.sin(alpha)
         x[2][2] = torch.cos(alpha)
         return x
+=======
+        hm = self.Conv_hm(x)
+
+        pos = self.Conv_pos(x)
+        pos = self.fc1(pos.view(pos.shape[0], -1))
+        pos = self.fc2(F.relu(pos))
+        pos = pos.view(pos.shape[0], 1, 21,3)
+        
+        return [hm, pos]
+
+>>>>>>> master
 
 class Regressor(nn.Module):
     """

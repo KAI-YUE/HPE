@@ -142,7 +142,6 @@ def PRe_train(model, optimizer, device="cuda", epoch=-1):
     logger.addHandler(sh)
     logger.info("-"*80)
 
-    prev = 0
     while (epoch < config.max_epoch):
         epoch += 1
         iteration = 0
@@ -165,15 +164,6 @@ def PRe_train(model, optimizer, device="cuda", epoch=-1):
             # update the log
             if (config.log_interval and iteration % config.log_interval == 0):
                 logger.info("epoch {} iter {} loss {:.3f} pos_loss {:.3f}".format(epoch, iteration, loss, pos_loss))
-                # for p in model.fc_theta2.parameters():
-                #     if p.requires_grad:
-                #         if (p.data == prev).all():
-                #             print(True)
-                #         else:
-                #             prev = p.data.clone()
-                #             print(False)
-                #     break
-
             iteration += 1
 
             # if (iteration > 5):
