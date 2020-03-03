@@ -150,12 +150,11 @@ def PRe_train(model, optimizer, device="cuda", epoch=-1):
             optimizer.zero_grad()
             
             image = data['img'].to(device)
-            heatmap = data['hm']
             pos = data['pos'].to(device)
 
             # Get output and calculate loss
             output = model(image)
-            loss, pos_loss = L(output[0], output[1].to(device), heatmap, pos)
+            loss = L(output["pos"].to(device), pos)
 
             # backward for PRe
             loss.backward()
@@ -163,7 +162,7 @@ def PRe_train(model, optimizer, device="cuda", epoch=-1):
             
             # update the log
             if (config.log_interval and iteration % config.log_interval == 0):
-                logger.info("epoch {} iter {} loss {:.3f} pos_loss {:.3f}".format(epoch, iteration, loss, pos_loss))
+                logger.info("epoch {} iter {} loss {:.3f} ".format(epoch, iteration, loss))
             iteration += 1
 
             # if (iteration > 5):
@@ -187,8 +186,8 @@ def PRe_train(model, optimizer, device="cuda", epoch=-1):
 
                     output = model(image)
 
-                    loss = L(output[0], output[1], heatmap, pos)
-                    logger.info("val loss {:.2f} pos_loss {:.2f}".format(loss[0], loss[1]))
+                    loss = L(output["pos"].to(device), pos)
+                    logger.info("val loss {:.2f}".format(loss))
 
                     if (i > config.sample_size):
                         break

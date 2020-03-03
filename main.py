@@ -9,7 +9,7 @@ import torch.optim as optim
 
 # My Libraries
 from src.loadConfig import loadConfig
-from src.networks import HLoNet, PReNet, Regressor, init_weights
+from src.networks import HLoNet, PReNet, init_weights
 from src.train import HLo_train, PRe_train
 from src.test import HLo_test, PRe_test, Synth_test, Dexter_test
 from utils.tools import freeze_layers

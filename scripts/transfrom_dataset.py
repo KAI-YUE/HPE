@@ -133,6 +133,8 @@ def trans_SynthHands(src_dir, dst_dir):
                     dat_dict["heatmaps"] = hms
                     dat_dict["root_pos"] = pos[root_index].copy()
                     
+                    # Calculate the rotation matrix for normalization
+                    pos -= pos[0]
                     _05_vec = pos[5] 
                     _09_vec = pos[9]
                     z_body_frame = np.cross(_05_vec, _09_vec)
