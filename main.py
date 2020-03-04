@@ -48,6 +48,9 @@ def main(mode=None, model_path=None):
         model.apply(init_weights)
         model.to(device)
 
+        if mode ==1:
+            model.init_finalFC(config.PCA_weight_file, device=device)
+
         # Initialize the optimizer 
         optimizer = optim.Adam(
             params = model.parameters(),

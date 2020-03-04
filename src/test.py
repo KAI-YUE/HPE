@@ -147,6 +147,8 @@ def PRe_test(model, output_dir, device="cuda"):
     num_parts = 21
     root_index = 9
 
+    L = PReCriterion()
+
     for root, dirs, files in os.walk(config.test_dir):
 
         new_dir = os.path.join(root.replace(config.test_dir, output_dir))
@@ -193,7 +195,8 @@ def PRe_test(model, output_dir, device="cuda"):
                 axs[0].imshow((255*a_set["img"]).astype("uint8"))
                 img = (255*a_set["cropped_img"]).astype("uint8")
 
-                _3d_pos_arr_ = result["pos"].cpu().detach().numpy().squeeze().copy()
+                _3d_pos_arr_ = np.zeros((21,3))
+                _3d_pos_arr_[1:] = result["pos"].cpu().detach().view(20,3).numpy().copy()
                 gt_3d_arr = a_set["norm_3d_pos"].copy()
                 R_inv = np.linalg.inv(R)
                 for i in range(_3d_pos_arr_.shape[0]):
@@ -210,7 +213,7 @@ def PRe_test(model, output_dir, device="cuda"):
                 plot_joint(img, _2d_pos_arr_, axs[1])
 
                 # Plot the original link results
-                ori_error = np.mean( np.sqrt(np.sum( (result["pos"].cpu().detach().numpy().squeeze()-a_set["norm_3d_pos"])**2, axis=1 )) )
+                ori_error = np.mean( np.sqrt(np.sum( (result["pos"].cpu().detach().view(20,3).numpy() - a_set["norm_3d_pos"][1:])**2, axis=1 )) )
 
                 axs[2].set_axis_off()
                 axs[2].set_title("Ground Truth {:.2f}".format(ori_error))  
@@ -219,7 +222,9 @@ def PRe_test(model, output_dir, device="cuda"):
                 _2d_pos[:,1] = (_2d_pos[:,1] - ROI[0])* a_set["scale_factors"][0]
                 plot_joint(img, _2d_pos, axs[2])
 
-
+                pos = torch.from_numpy(a_set['norm_3d_pos'].astype('float32'))
+                pos = pos[None, 1:, :]
+                loss = L(result["pos"], pos.to(device))
                 axs[3].set_axis_off()
                 axs[3].set_title("Append")
                 _2d_pos_arr_ = project2plane(gt_3d_arr)

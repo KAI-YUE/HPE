@@ -186,7 +186,7 @@ def PRe_train(model, optimizer, device="cuda", epoch=-1):
 
                     output = model(image)
 
-                    loss = L(output["pos"].to(device), pos)
+                    loss = L(output["pos"], pos)
                     logger.info("val loss {:.2f}".format(loss))
 
                     if (i > config.sample_size):

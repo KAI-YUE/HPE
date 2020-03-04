@@ -20,9 +20,10 @@ venv/
 # model
 checkpoints/
 
-# docs
+# docs & data
 test_data.json
 samples*.json
+*.npy
 *.pyc
 log/
 config.json

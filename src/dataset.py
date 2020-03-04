@@ -80,12 +80,6 @@ class PReDataset(Dataset):
         with open(self.ImageList[idx], 'rb') as fp:
             a_set = pickle.load(fp) 
 
-        # ROI = a_set["ROI"].astype("int")
-        # img = a_set["img"][ROI[0]:ROI[1], ROI[2]:ROI[3]]
-        # depth = a_set["depth_norm"][ROI[0]:ROI[1], ROI[2]:ROI[3]]
-        # Img = np.dstack((depth, img)).transpose((2,0,1))
-        # Img = torch.from_numpy(Img).to(torch.float32)
-        # Img = F.interpolate(Img[None, ...], self.img_size, mode="bilinear")[0]
         img = a_set["cropped_img"]
         depth = a_set["cropped_depth"]
         Img = torch.from_numpy(np.dstack((depth, img)).transpose((2,0,1))).to(torch.float32)
@@ -93,7 +87,8 @@ class PReDataset(Dataset):
         # Heatmaps of different parts
         hm = torch.from_numpy(a_set["heatmaps"]).to(torch.float32)
         
-        pos = torch.from_numpy(a_set['norm_3d_pos'].astype('float32')).view(1,21,3)
+        pos = torch.from_numpy(a_set['norm_3d_pos'].astype('float32'))
+        pos = pos[None, 1:, :]
 
         return dict(img=Img, hm=hm, pos=pos)
             

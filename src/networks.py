@@ -1,4 +1,7 @@
-﻿# Pytorch Libraries
+﻿# Python Libraries
+import pickle
+
+# Pytorch Libraries
 import torch
 import torch.nn as nn
 import torch.nn.functional as F
@@ -83,17 +86,18 @@ class PReNet(nn.Module):
             nn.BatchNorm2d(256),
             nn.ReLU())
 
-        self.fc_theta1 = nn.Linear(256*16**2, 256)
-        self.fc_theta2 = nn.Linear(256, 33)
-        
-        self.fc_scale1 = nn.Linear(256*16**2, 256)
-        self.fc_scale2 = nn.Linear(256, 20)
+        self.fc1 = nn.Linear(256*16**2, 20)
+        self.fc2 = nn.Linear(20, 60)
 
-        self.phalanges_arr =  torch.tensor([40.712, 34.040, 29.417, 26.423,
-                                            79.706, 35.224, 23.270, 22.036,
-                                            75.669, 41.975, 26.329, 24.504,
-                                            75.358, 39.978, 23.513, 22.647,
-                                            74.556, 27.541, 19.826, 20.395])
+    def init_finalFC(self, src_dir, device="cuda"):
+        """
+        Initialize the weights of the last fully-connected layer with PCA. 
+        """
+        with open(src_dir, "rb") as fp:
+            a_set = pickle.load(fp)
+
+        self.fc2.weight.data = torch.from_numpy(a_set["weight"]).to(torch.float32).to(device)
+        self.fc2.bias.data = torch.from_numpy(a_set["bias"]).to(torch.float32).to(device)
 
     def forward(self, x):
         x = self.conv1(x)
@@ -114,110 +118,11 @@ class PReNet(nn.Module):
         x = self.conv4e(x)
         x = self.conv4f(x)
 
-        theta = self.fc_theta1(x.view(x.shape[0], -1))
-        theta = 3.14*torch.sigmoid(self.fc_theta2(F.relu(theta)))
+        x = F.relu(self.fc1(x.view(x.shape[0], -1)))
+        pos = self.fc2(x.view(x.shape[0], -1))
 
-        scale = self.fc_scale1(x.view(x.shape[0], -1))
-        scale = torch.sigmoid(self.fc_scale2(F.relu(scale))) 
-        pos = self.forward_kinematics(scale, theta)
+        return dict(pos=pos.view(pos.shape[0], 1, 20, 3))
 
-        return dict(pos=pos, scale=scale, theta=theta)
-
-
-    def forward_kinematics(self, scale, theta):
-        """
-        Derive the 3d positions with forward kinematics.
-        """
-        scale = scale + 1
-        pos = torch.zeros((theta.shape[0], 21, 3))
-        p0 = torch.tensor([0., 0., 0., 1.])
-
-        # For each sample
-        
-        for i in range(theta.shape[0]):
-            j = 0
-            # Thumb kinematics
-            z = self.z_matrix(theta[i,0])
-            x = self.x_matrix(theta[i,1], torch.tensor(0.))
-            T = z @ x
-
-            z = self.z_matrix(theta[i,2])
-            x = self.x_matrix(theta[i,3], scale[i, j]*self.phalanges_arr[j])
-            j += 1
-            T = T @ z @ x
-            pos[i,1] = (T @ p0) [:3]
-
-            z = self.z_matrix(theta[i,4])
-            x = self.x_matrix(theta[i,5], torch.tensor(0.))
-            T = T @ z @ x
-
-            z = self.z_matrix(theta[i,6])
-            x = self.x_matrix(torch.tensor(0.), scale[i, j]*self.phalanges_arr[j])
-            j += 1
-            T = T @ z @ x
-            pos[i,2] = (T @ p0) [:3]
-
-            z = self.z_matrix(theta[i,7])
-            x = self.x_matrix(torch.tensor(0.), scale[i, j]*self.phalanges_arr[j])
-            j += 1
-            T = T @ z @ x
-            pos[i,3] = (T @ p0) [:3]
-
-            z = self.z_matrix(theta[i,8])
-            x = self.x_matrix(torch.tensor(0.), scale[i, j]*self.phalanges_arr[j])
-            j += 1
-            T = T @ z @ x
-            pos[i,4] = (T @ p0) [:3]
-
-            # Finger kinematics
-            for k in range(4):
-                z = self.z_matrix(theta[i,6*k+9])
-                x = self.x_matrix(torch.tensor(0.), scale[i, j]*self.phalanges_arr[j])
-                j += 1
-                T = z @ x
-                pos[i,4*k+5] = (T @ p0) [:3]
-
-                z = self.z_matrix(theta[i,6*k+10])
-                x = self.x_matrix(theta[i,6*k+11], torch.tensor(0.))
-                T = T @ z @ x
-
-                for l in range(3):
-                    z = self.z_matrix(theta[i,6*k+12+l])
-                    x = self.x_matrix(torch.tensor(0.), scale[i, j]*self.phalanges_arr[j])
-                    j += 1
-                    T = T @ z @ x
-                    pos[i,4*k+6+l] = (T @ p0) [:3]
-
-        return pos[:,None,...]
-
-
-    @ staticmethod
-    def z_matrix(theta, d=0):
-        """
-        Return the z matrix given the D-H parameter.
-        To guarantee the gradient calculation, we assign the value manually.
-        """
-        z = torch.eye(4)
-        z[0][0] = torch.cos(theta)
-        z[0][1] = -torch.sin(theta)
-        z[1][0] = torch.sin(theta)
-        z[1][1] = torch.cos(theta)
-        z[2][3] = d
-        return z
-
-    @ staticmethod
-    def x_matrix(alpha, a=0):
-        """
-        Return the x matrix given the D-H parameter.
-        To guarantee the gradient calculation, we assign the value manually.
-        """
-        x = torch.eye(4)
-        x[0][3] = a
-        x[1][1] = torch.cos(alpha)
-        x[1][2] = -torch.sin(alpha)
-        x[2][1] = torch.sin(alpha)
-        x[2][2] = torch.cos(alpha)
-        return x
 
 class Conv_ResnetBlock(nn.Module):
     """
