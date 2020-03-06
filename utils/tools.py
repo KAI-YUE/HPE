@@ -10,6 +10,7 @@ import numpy as np
 
 # Pytorch Libraries
 import torch
+import torch.nn as nn
 
 # My Libraries
 from src.loadConfig import loadConfig
@@ -230,8 +231,148 @@ def freeze_layers(model, num_layers):
             break    
         for param in child.parameters():
             param.requires_grad = False
-    
 
+
+def load_pretrained_weights(model_dir, model):
+    with open(model_dir, "rb") as fp:
+        state_dict = pickle.load(fp)
+
+    # Conv1
+    for i in range(3):
+        model.conv1[i].weight.data = torch.from_numpy(state_dict[i+1]["weights"][0])
+        model.conv1[i].bias.data = torch.from_numpy(state_dict[i+1]["weights"][1])
+    
+    #######################################################################################
+    # Res2a block
+    for i in range(3):
+        model.res2a.conv_block[i].weight.data = torch.from_numpy(state_dict[i+7]["weights"][0])
+        if (len(state_dict[i+7]["weights"]) > 1):
+            model.res2a.conv_block[i].bias.data = torch.from_numpy(state_dict[i+7]["weights"][1])
+        else:
+            nn.init.constant_(model.res2a.conv_block[i].bias.data, 0.)
+    
+        # skip 3,7 for relu layer
+    for i in [0,1,2,4,5,6,8,9,10]:
+        model.res2a.basic_block[i].weight.data = torch.from_numpy(state_dict[i+10]["weights"][0])
+        if (len(state_dict[i+10]["weights"]) > 1):
+            model.res2a.basic_block[i].bias.data = torch.from_numpy(state_dict[i+10]["weights"][1])
+        else:
+            nn.init.constant_(model.res2a.basic_block[i].bias.data, 0.)
+
+    # Res2b block
+    for i in [0,1,2,4,5,6,8,9,10]:
+        model.res2b.basic_block[i].weight.data = torch.from_numpy(state_dict[i+24]["weights"][0])
+        if (len(state_dict[i+24]["weights"]) > 1):
+            model.res2b.basic_block[i].bias.data = torch.from_numpy(state_dict[i+24]["weights"][1])
+        else:
+            nn.init.constant_(model.res2b.basic_block[i].bias.data, 0.)
+
+    # Res2c block
+    for i in [0,1,2,4,5,6,8,9,10]:
+        model.res2c.basic_block[i].weight.data = torch.from_numpy(state_dict[i+38]["weights"][0])
+        if (len(state_dict[i+38]["weights"]) > 1):
+            model.res2c.basic_block[i].bias.data = torch.from_numpy(state_dict[i+38]["weights"][1])
+        else:
+            nn.init.constant_(model.res2c.basic_block[i].bias.data, 0.)  
+
+    #######################################################################################
+    # Res3a block
+    for i in range(3):
+        model.res3a.conv_block[i].weight.data = torch.from_numpy(state_dict[i+52]["weights"][0])
+        if (len(state_dict[i+52]["weights"]) > 1):
+            model.res3a.conv_block[i].bias.data = torch.from_numpy(state_dict[i+52]["weights"][1])
+        else:
+            nn.init.constant_(model.res3a.basic_block[i].bias.data, 0.)
+    
+        # skip 3,7 for relu layer
+    for i in [0,1,2,4,5,6,8,9,10]:
+        model.res3a.basic_block[i].weight.data = torch.from_numpy(state_dict[i+55]["weights"][0])
+        if (len(state_dict[i+55]["weights"]) > 1):
+            model.res3a.basic_block[i].bias.data = torch.from_numpy(state_dict[i+55]["weights"][1])
+        else:
+            nn.init.constant_(model.res3a.basic_block[i].bias.data, 0.)
+
+    # Res3b block
+    for i in [0,1,2,4,5,6,8,9,10]:
+        model.res3b.basic_block[i].weight.data = torch.from_numpy(state_dict[i+69]["weights"][0])
+        if (len(state_dict[i+69]["weights"]) > 1):
+            model.res3b.basic_block[i].bias.data = torch.from_numpy(state_dict[i+69]["weights"][1])
+        else:
+            nn.init.constant_(model.res3b.basic_block[i].bias.data, 0.)
+
+    # Res3c block
+    for i in [0,1,2,4,5,6,8,9,10]:
+        model.res3c.basic_block[i].weight.data = torch.from_numpy(state_dict[i+83]["weights"][0])
+        if (len(state_dict[i+83]["weights"]) > 1):
+            model.res3c.basic_block[i].bias.data = torch.from_numpy(state_dict[i+83]["weights"][1])
+        else:
+            nn.init.constant_(model.res3c.basic_block[i].bias.data, 0.)  
+
+    ##########################################################################################
+    # Res4a block
+    for i in range(1,3):
+        model.res4a.conv_block[i].weight.data = torch.from_numpy(state_dict[i+97]["weights"][0])
+        if (len(state_dict[i+97]["weights"]) > 1):
+            model.res4a.conv_block[i].bias.data = torch.from_numpy(state_dict[i+97]["weights"][1])
+        else:
+            nn.init.constant_(model.res4a.basic_block[i].bias.data, 0.)
+    
+        # skip 3,7 for relu layer
+    for i in [0,1,2,4,5,6,8,9,10]:
+        model.res4a.basic_block[i].weight.data = torch.from_numpy(state_dict[i+100]["weights"][0])
+        if (len(state_dict[i+100]["weights"]) > 1):
+            model.res4a.basic_block[i].bias.data = torch.from_numpy(state_dict[i+100]["weights"][1])
+        else:
+            nn.init.constant_(model.res4a.basic_block[i].bias.data, 0.)
+
+    # Res4b block
+    for i in [0,1,2,4,5,6,8,9,10]:
+        model.res4b.basic_block[i].weight.data = torch.from_numpy(state_dict[i+114]["weights"][0])
+        if (len(state_dict[i+114]["weights"]) > 1):
+            model.res4b.basic_block[i].bias.data = torch.from_numpy(state_dict[i+114]["weights"][1])
+        else:
+            nn.init.constant_(model.res4b.basic_block[i].bias.data, 0.)
+
+    # Res4c block
+    for i in [0,1,2,4,5,6,8,9,10]:
+        model.res4c.basic_block[i].weight.data = torch.from_numpy(state_dict[i+128]["weights"][0])
+        if (len(state_dict[i+10]["weights"]) > 1):
+            model.res4c.basic_block[i].bias.data = torch.from_numpy(state_dict[i+128]["weights"][1])
+        else:
+            nn.init.constant_(model.res4c.basic_block[i].bias.data, 0.) 
+
+    # Res4d block
+    for i in [0,1,2,4,5,6,8,9,10]:
+        model.res4c.basic_block[i].weight.data = torch.from_numpy(state_dict[i+142]["weights"][0])
+        if (len(state_dict[i+142]["weights"]) > 1):
+            model.res4c.basic_block[i].bias.data = torch.from_numpy(state_dict[i+142]["weights"][1])
+        else:
+            nn.init.constant_(model.res4c.basic_block[i].bias.data, 0.) 
+    
+    ###################################################################################################
+    # Conv4e
+    for i in range(3):
+        model.conv4e[i].weight.data = torch.from_numpy(state_dict[i+155]["weights"][0])
+        if (len(state_dict[i+155]["weights"]) > 1):
+            model.conv4e[i].bias.data = torch.from_numpy(state_dict[i+155]["weights"][1])
+        else:
+            nn.init.constant_(model.conv4e[i].bias.data, 0.) 
+    
+    # Conv4f 
+    for i in range(3):
+        model.conv4f[i].weight.data = torch.from_numpy(state_dict[i+159]["weights"][0])
+        if (len(state_dict[i+159]["weights"]) > 1):
+            model.conv4f[i].bias.data = torch.from_numpy(state_dict[i+159]["weights"][1])
+        else:
+            nn.init.constant_(model.conv4f[i].bias.data, 0.) 
+
+    model.heatmap_conv.weight.data = torch.from_numpy(state_dict[164]["weights"][0])
+    model.heatmap_upsample.weight.data = torch.from_numpy(state_dict[165]["weights"][0]) 
+
+    model.fc1.weight.data = torch.from_numpy(state_dict[167]["weights"][0])
+    model.fc1.bias.data = torch.from_numpy(state_dict[167]["weights"][1])
+    model.fc2.weight.data = torch.from_numpy(state_dict[168]["weights"][0])
+    model.fc2.bias.data = torch.from_numpy(state_dict[168]["weights"][1])
 
 
 mean_dict = \

@@ -12,7 +12,7 @@ from src.loadConfig import loadConfig
 from src.networks import HLoNet, PReNet, init_weights
 from src.train import HLo_train, PRe_train
 from src.test import HLo_test, PRe_test, Synth_test, Dexter_test
-from utils.tools import freeze_layers
+from utils.tools import freeze_layers, load_pretrained_weights
 
 def main(mode=None, model_path=None):
     """
@@ -93,11 +93,12 @@ def main(mode=None, model_path=None):
             model = HLoNet() if mode == 4 else PReNet()
             model.to(device)
 
-            model.load_state_dict(state_dict['model'], strict=False)
+            # model.load_state_dict(state_dict['model'], strict=False)
 
             if mode == 4: 
                 HLo_test(model, config.test_output_dir, device=device, mode=1)
             elif mode == 5:
+                load_pretrained_weights(config.pretrained_model_dir, model)
                 PRe_test(model, config.test_output_dir, device=device)
 
     else:
