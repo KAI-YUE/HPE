@@ -105,7 +105,7 @@ def pos_from_heatmap(heatmaps, depth, ROI):
     return pos_arr
 
 
-def naive_pos_from_heatmap(heatmaps):
+def naive_pos_from_heatmaps(heatmaps):
     pos_arr = np.zeros((21, 2), dtype="int")
     
     # Rigister all of the certain keypoints
@@ -238,142 +238,340 @@ def load_pretrained_weights(model_dir, model):
         state_dict = pickle.load(fp)
 
     # Conv1
-    for i in range(3):
-        model.conv1[i].weight.data = torch.from_numpy(state_dict[i+1]["weights"][0])
-        model.conv1[i].bias.data = torch.from_numpy(state_dict[i+1]["weights"][1])
-    
+    model.conv1[0].weight.data.copy_(torch.from_numpy(state_dict["conv1_new"]["weights"].transpose((3,2,0,1))))
+    model.conv1[0].bias.data.copy_(torch.from_numpy(state_dict["conv1_new"]["bias"]))
+
+    model.conv1[1].weight.data.copy_(torch.from_numpy(state_dict["bn_conv1"]["scale"]))
+    model.conv1[1].bias.data.copy_(torch.from_numpy(state_dict["bn_conv1"]["bias"]))
+    model.conv1[1].running_mean.data.copy_(torch.from_numpy(state_dict["bn_conv1"]["mean"]))
+    model.conv1[1].running_var.data.copy_(torch.from_numpy(state_dict["bn_conv1"]["var"]))
+
     #######################################################################################
     # Res2a block
-    for i in range(3):
-        model.res2a.conv_block[i].weight.data = torch.from_numpy(state_dict[i+7]["weights"][0])
-        if (len(state_dict[i+7]["weights"]) > 1):
-            model.res2a.conv_block[i].bias.data = torch.from_numpy(state_dict[i+7]["weights"][1])
-        else:
-            nn.init.constant_(model.res2a.conv_block[i].bias.data, 0.)
+    # -- branch1 -> conv block
+    model.res2a.conv_block[0].weight.data.copy_(torch.from_numpy(state_dict["res2a_branch1"]["weights"].transpose((3,2,0,1))))
+    model.res2a.conv_block[0].bias.data.fill_(0.)
+
+    model.res2a.conv_block[1].weight.data.copy_(torch.from_numpy(state_dict["bn2a_branch1"]["scale"]))
+    model.res2a.conv_block[1].bias.data.copy_(torch.from_numpy(state_dict["bn2a_branch1"]["bias"]))
+    model.res2a.conv_block[1].running_mean.data.copy_(torch.from_numpy(state_dict["bn2a_branch1"]["mean"]))
+    model.res2a.conv_block[1].running_var.data.copy_(torch.from_numpy(state_dict["bn2a_branch1"]["var"]))
     
-        # skip 3,7 for relu layer
-    for i in [0,1,2,4,5,6,8,9,10]:
-        model.res2a.basic_block[i].weight.data = torch.from_numpy(state_dict[i+10]["weights"][0])
-        if (len(state_dict[i+10]["weights"]) > 1):
-            model.res2a.basic_block[i].bias.data = torch.from_numpy(state_dict[i+10]["weights"][1])
-        else:
-            nn.init.constant_(model.res2a.basic_block[i].bias.data, 0.)
+    # --branch2 -> basic_block 
+    model.res2a.basic_block[0].weight.data.copy_(torch.from_numpy(state_dict["res2a_branch2a"]["weights"].transpose((3,2,0,1))))
+    model.res2a.basic_block[0].bias.data.fill_(0.)
+    
+    model.res2a.basic_block[1].weight.data.copy_(torch.from_numpy(state_dict["bn2a_branch2a"]["scale"]))
+    model.res2a.basic_block[1].bias.data.copy_(torch.from_numpy(state_dict["bn2a_branch2a"]["bias"]))
+    model.res2a.basic_block[1].running_mean.data.copy_(torch.from_numpy(state_dict["bn2a_branch2a"]["mean"]))
+    model.res2a.basic_block[1].running_var.data.copy_(torch.from_numpy(state_dict["bn2a_branch2a"]["var"]))
+
+    model.res2a.basic_block[3].weight.data.copy_(torch.from_numpy(state_dict["res2a_branch2b"]["weights"].transpose((3,2,0,1))))
+    model.res2a.basic_block[3].bias.data.fill_(0.)
+    
+    model.res2a.basic_block[4].weight.data.copy_(torch.from_numpy(state_dict["bn2a_branch2b"]["scale"]))
+    model.res2a.basic_block[4].bias.data.copy_(torch.from_numpy(state_dict["bn2a_branch2b"]["bias"]))
+    model.res2a.basic_block[4].running_mean.data.copy_(torch.from_numpy(state_dict["bn2a_branch2b"]["mean"]))
+    model.res2a.basic_block[4].running_var.data.copy_(torch.from_numpy(state_dict["bn2a_branch2b"]["var"]))
+
+    model.res2a.basic_block[6].weight.data.copy_(torch.from_numpy(state_dict["res2a_branch2c"]["weights"].transpose((3,2,0,1))))
+    model.res2a.basic_block[6].bias.data.fill_(0.)
+    
+    model.res2a.basic_block[7].weight.data.copy_(torch.from_numpy(state_dict["bn2a_branch2c"]["scale"]))
+    model.res2a.basic_block[7].bias.data.copy_(torch.from_numpy(state_dict["bn2a_branch2c"]["bias"]))
+    model.res2a.basic_block[7].running_mean.data.copy_(torch.from_numpy(state_dict["bn2a_branch2c"]["mean"]))
+    model.res2a.basic_block[7].running_var.data.copy_(torch.from_numpy(state_dict["bn2a_branch2c"]["var"]))
 
     # Res2b block
-    for i in [0,1,2,4,5,6,8,9,10]:
-        model.res2b.basic_block[i].weight.data = torch.from_numpy(state_dict[i+24]["weights"][0])
-        if (len(state_dict[i+24]["weights"]) > 1):
-            model.res2b.basic_block[i].bias.data = torch.from_numpy(state_dict[i+24]["weights"][1])
-        else:
-            nn.init.constant_(model.res2b.basic_block[i].bias.data, 0.)
+    # --branch2 -> basic_block 
+    model.res2b.basic_block[0].weight.data.copy_(torch.from_numpy(state_dict["res2b_branch2a"]["weights"].transpose((3,2,0,1))))
+    model.res2b.basic_block[0].bias.data.fill_(0.)
+    
+    model.res2b.basic_block[1].weight.data.copy_(torch.from_numpy(state_dict["bn2b_branch2a"]["scale"]))
+    model.res2b.basic_block[1].bias.data.copy_(torch.from_numpy(state_dict["bn2b_branch2a"]["bias"]))
+    model.res2b.basic_block[1].running_mean.data.copy_(torch.from_numpy(state_dict["bn2b_branch2a"]["mean"]))
+    model.res2b.basic_block[1].running_var.data.copy_(torch.from_numpy(state_dict["bn2b_branch2a"]["var"]))
+
+    model.res2b.basic_block[3].weight.data.copy_(torch.from_numpy(state_dict["res2b_branch2b"]["weights"].transpose((3,2,0,1))))
+    model.res2b.basic_block[3].bias.data.fill_(0.)
+    
+    model.res2b.basic_block[4].weight.data.copy_(torch.from_numpy(state_dict["bn2b_branch2b"]["scale"]))
+    model.res2b.basic_block[4].bias.data.copy_(torch.from_numpy(state_dict["bn2b_branch2b"]["bias"]))
+    model.res2b.basic_block[4].running_mean.data.copy_(torch.from_numpy(state_dict["bn2b_branch2b"]["mean"]))
+    model.res2b.basic_block[4].running_var.data.copy_(torch.from_numpy(state_dict["bn2b_branch2b"]["var"]))
+
+    model.res2b.basic_block[6].weight.data.copy_(torch.from_numpy(state_dict["res2b_branch2c"]["weights"].transpose((3,2,0,1))))
+    model.res2b.basic_block[6].bias.data.fill_(0.)
+    
+    model.res2b.basic_block[7].weight.data.copy_(torch.from_numpy(state_dict["bn2b_branch2c"]["scale"]))
+    model.res2b.basic_block[7].bias.data.copy_(torch.from_numpy(state_dict["bn2b_branch2c"]["bias"]))
+    model.res2b.basic_block[7].running_mean.data.copy_(torch.from_numpy(state_dict["bn2b_branch2c"]["mean"]))
+    model.res2b.basic_block[7].running_var.data.copy_(torch.from_numpy(state_dict["bn2b_branch2c"]["var"]))
 
     # Res2c block
-    for i in [0,1,2,4,5,6,8,9,10]:
-        model.res2c.basic_block[i].weight.data = torch.from_numpy(state_dict[i+38]["weights"][0])
-        if (len(state_dict[i+38]["weights"]) > 1):
-            model.res2c.basic_block[i].bias.data = torch.from_numpy(state_dict[i+38]["weights"][1])
-        else:
-            nn.init.constant_(model.res2c.basic_block[i].bias.data, 0.)  
+    # --branch2 -> basic_block 
+    model.res2c.basic_block[0].weight.data.copy_(torch.from_numpy(state_dict["res2c_branch2a"]["weights"].transpose((3,2,0,1))))
+    model.res2c.basic_block[0].bias.data.fill_(0.)
+    
+    model.res2c.basic_block[1].weight.data.copy_(torch.from_numpy(state_dict["bn2c_branch2a"]["scale"]))
+    model.res2c.basic_block[1].bias.data.copy_(torch.from_numpy(state_dict["bn2c_branch2a"]["bias"]))
+    model.res2c.basic_block[1].running_mean.data.copy_(torch.from_numpy(state_dict["bn2c_branch2a"]["mean"]))
+    model.res2c.basic_block[1].running_var.data.copy_(torch.from_numpy(state_dict["bn2c_branch2a"]["var"]))
+
+    model.res2c.basic_block[3].weight.data.copy_(torch.from_numpy(state_dict["res2c_branch2b"]["weights"].transpose((3,2,0,1))))
+    model.res2c.basic_block[3].bias.data.fill_(0.)
+    
+    model.res2c.basic_block[4].weight.data.copy_(torch.from_numpy(state_dict["bn2c_branch2b"]["scale"]))
+    model.res2c.basic_block[4].bias.data.copy_(torch.from_numpy(state_dict["bn2c_branch2b"]["bias"]))
+    model.res2c.basic_block[4].running_mean.data.copy_(torch.from_numpy(state_dict["bn2c_branch2b"]["mean"]))
+    model.res2c.basic_block[4].running_var.data.copy_(torch.from_numpy(state_dict["bn2c_branch2b"]["var"]))
+
+    model.res2c.basic_block[6].weight.data.copy_(torch.from_numpy(state_dict["res2c_branch2c"]["weights"].transpose((3,2,0,1))))
+    model.res2c.basic_block[6].bias.data.fill_(0.)
+    
+    model.res2c.basic_block[7].weight.data.copy_(torch.from_numpy(state_dict["bn2c_branch2c"]["scale"]))
+    model.res2c.basic_block[7].bias.data.copy_(torch.from_numpy(state_dict["bn2c_branch2c"]["bias"]))
+    model.res2c.basic_block[7].running_mean.data.copy_(torch.from_numpy(state_dict["bn2c_branch2c"]["mean"]))
+    model.res2c.basic_block[7].running_var.data.copy_(torch.from_numpy(state_dict["bn2c_branch2c"]["var"]))
 
     #######################################################################################
     # Res3a block
-    for i in range(3):
-        model.res3a.conv_block[i].weight.data = torch.from_numpy(state_dict[i+52]["weights"][0])
-        if (len(state_dict[i+52]["weights"]) > 1):
-            model.res3a.conv_block[i].bias.data = torch.from_numpy(state_dict[i+52]["weights"][1])
-        else:
-            nn.init.constant_(model.res3a.basic_block[i].bias.data, 0.)
+    # -- branch1 -> conv block
+    model.res3a.conv_block[0].weight.data.copy_(torch.from_numpy(state_dict["res3a_branch1"]["weights"].transpose((3,2,0,1))))
+    model.res3a.conv_block[0].bias.data.fill_(0.)
+
+    model.res3a.conv_block[1].weight.data.copy_(torch.from_numpy(state_dict["bn3a_branch1"]["scale"]))
+    model.res3a.conv_block[1].bias.data.copy_(torch.from_numpy(state_dict["bn3a_branch1"]["bias"]))
+    model.res3a.conv_block[1].running_mean.data.copy_(torch.from_numpy(state_dict["bn3a_branch1"]["mean"]))
+    model.res3a.conv_block[1].running_var.data.copy_(torch.from_numpy(state_dict["bn3a_branch1"]["var"]))
     
-        # skip 3,7 for relu layer
-    for i in [0,1,2,4,5,6,8,9,10]:
-        model.res3a.basic_block[i].weight.data = torch.from_numpy(state_dict[i+55]["weights"][0])
-        if (len(state_dict[i+55]["weights"]) > 1):
-            model.res3a.basic_block[i].bias.data = torch.from_numpy(state_dict[i+55]["weights"][1])
-        else:
-            nn.init.constant_(model.res3a.basic_block[i].bias.data, 0.)
+    # --branch2 -> basic_block 
+    model.res3a.basic_block[0].weight.data.copy_(torch.from_numpy(state_dict["res3a_branch2a"]["weights"].transpose((3,2,0,1))))
+    model.res3a.basic_block[0].bias.data.fill_(0.)
+    
+    model.res3a.basic_block[1].weight.data.copy_(torch.from_numpy(state_dict["bn3a_branch2a"]["scale"]))
+    model.res3a.basic_block[1].bias.data.copy_(torch.from_numpy(state_dict["bn3a_branch2a"]["bias"]))
+    model.res3a.basic_block[1].running_mean.data.copy_(torch.from_numpy(state_dict["bn3a_branch2a"]["mean"]))
+    model.res3a.basic_block[1].running_var.data.copy_(torch.from_numpy(state_dict["bn3a_branch2a"]["var"]))
 
-    # Res3b block
-    for i in [0,1,2,4,5,6,8,9,10]:
-        model.res3b.basic_block[i].weight.data = torch.from_numpy(state_dict[i+69]["weights"][0])
-        if (len(state_dict[i+69]["weights"]) > 1):
-            model.res3b.basic_block[i].bias.data = torch.from_numpy(state_dict[i+69]["weights"][1])
-        else:
-            nn.init.constant_(model.res3b.basic_block[i].bias.data, 0.)
+    model.res3a.basic_block[3].weight.data.copy_(torch.from_numpy(state_dict["res3a_branch2b"]["weights"].transpose((3,2,0,1))))
+    model.res3a.basic_block[3].bias.data.fill_(0.)
+    
+    model.res3a.basic_block[4].weight.data.copy_(torch.from_numpy(state_dict["bn3a_branch2b"]["scale"]))
+    model.res3a.basic_block[4].bias.data.copy_(torch.from_numpy(state_dict["bn3a_branch2b"]["bias"]))
+    model.res3a.basic_block[4].running_mean.data.copy_(torch.from_numpy(state_dict["bn3a_branch2b"]["mean"]))
+    model.res3a.basic_block[4].running_var.data.copy_(torch.from_numpy(state_dict["bn3a_branch2b"]["var"]))
 
-    # Res3c block
-    for i in [0,1,2,4,5,6,8,9,10]:
-        model.res3c.basic_block[i].weight.data = torch.from_numpy(state_dict[i+83]["weights"][0])
-        if (len(state_dict[i+83]["weights"]) > 1):
-            model.res3c.basic_block[i].bias.data = torch.from_numpy(state_dict[i+83]["weights"][1])
-        else:
-            nn.init.constant_(model.res3c.basic_block[i].bias.data, 0.)  
+    model.res3a.basic_block[6].weight.data.copy_(torch.from_numpy(state_dict["res3a_branch2c"]["weights"].transpose((3,2,0,1))))
+    model.res3a.basic_block[6].bias.data.fill_(0.)
+    
+    model.res3a.basic_block[7].weight.data.copy_(torch.from_numpy(state_dict["bn3a_branch2c"]["scale"]))
+    model.res3a.basic_block[7].bias.data.copy_(torch.from_numpy(state_dict["bn3a_branch2c"]["bias"]))
+    model.res3a.basic_block[7].running_mean.data.copy_(torch.from_numpy(state_dict["bn3a_branch2c"]["mean"]))
+    model.res3a.basic_block[7].running_var.data.copy_(torch.from_numpy(state_dict["bn3a_branch2c"]["var"]))
+
+    # Res3b block    
+    # --branch2 -> basic_block 
+    model.res3b.basic_block[0].weight.data.copy_(torch.from_numpy(state_dict["res3b_branch2a"]["weights"].transpose((3,2,0,1))))
+    model.res3b.basic_block[0].bias.data.fill_(0.)
+    
+    model.res3b.basic_block[1].weight.data.copy_(torch.from_numpy(state_dict["bn3b_branch2a"]["scale"]))
+    model.res3b.basic_block[1].bias.data.copy_(torch.from_numpy(state_dict["bn3b_branch2a"]["bias"]))
+    model.res3b.basic_block[1].running_mean.data.copy_(torch.from_numpy(state_dict["bn3b_branch2a"]["mean"]))
+    model.res3b.basic_block[1].running_var.data.copy_(torch.from_numpy(state_dict["bn3b_branch2a"]["var"]))
+
+    model.res3b.basic_block[3].weight.data.copy_(torch.from_numpy(state_dict["res3b_branch2b"]["weights"].transpose((3,2,0,1))))
+    model.res3b.basic_block[3].bias.data.fill_(0.)
+    
+    model.res3b.basic_block[4].weight.data.copy_(torch.from_numpy(state_dict["bn3b_branch2b"]["scale"]))
+    model.res3b.basic_block[4].bias.data.copy_(torch.from_numpy(state_dict["bn3b_branch2b"]["bias"]))
+    model.res3b.basic_block[4].running_mean.data.copy_(torch.from_numpy(state_dict["bn3b_branch2b"]["mean"]))
+    model.res3b.basic_block[4].running_var.data.copy_(torch.from_numpy(state_dict["bn3b_branch2b"]["var"]))
+
+    model.res3b.basic_block[6].weight.data.copy_(torch.from_numpy(state_dict["res3b_branch2c"]["weights"].transpose((3,2,0,1))))
+    model.res3b.basic_block[6].bias.data.fill_(0.)
+    
+    model.res3b.basic_block[7].weight.data.copy_(torch.from_numpy(state_dict["bn3b_branch2c"]["scale"]))
+    model.res3b.basic_block[7].bias.data.copy_(torch.from_numpy(state_dict["bn3b_branch2c"]["bias"]))
+    model.res3b.basic_block[7].running_mean.data.copy_(torch.from_numpy(state_dict["bn3b_branch2c"]["mean"]))
+    model.res3b.basic_block[7].running_var.data.copy_(torch.from_numpy(state_dict["bn3b_branch2c"]["var"]))
+
+    # Res3c block    
+    # --branch2 -> basic_block 
+    model.res3c.basic_block[0].weight.data.copy_(torch.from_numpy(state_dict["res3c_branch2a"]["weights"].transpose((3,2,0,1))))
+    model.res3c.basic_block[0].bias.data.fill_(0.)
+    
+    model.res3c.basic_block[1].weight.data.copy_(torch.from_numpy(state_dict["bn3c_branch2a"]["scale"]))
+    model.res3c.basic_block[1].bias.data.copy_(torch.from_numpy(state_dict["bn3c_branch2a"]["bias"]))
+    model.res3c.basic_block[1].running_mean.data.copy_(torch.from_numpy(state_dict["bn3c_branch2a"]["mean"]))
+    model.res3c.basic_block[1].running_var.data.copy_(torch.from_numpy(state_dict["bn3c_branch2a"]["var"]))
+
+    model.res3c.basic_block[3].weight.data.copy_(torch.from_numpy(state_dict["res3c_branch2b"]["weights"].transpose((3,2,0,1))))
+    model.res3c.basic_block[3].bias.data.fill_(0.)
+    
+    model.res3c.basic_block[4].weight.data.copy_(torch.from_numpy(state_dict["bn3c_branch2b"]["scale"]))
+    model.res3c.basic_block[4].bias.data.copy_(torch.from_numpy(state_dict["bn3c_branch2b"]["bias"]))
+    model.res3c.basic_block[4].running_mean.data.copy_(torch.from_numpy(state_dict["bn3c_branch2b"]["mean"]))
+    model.res3c.basic_block[4].running_var.data.copy_(torch.from_numpy(state_dict["bn3c_branch2b"]["var"]))
+
+    model.res3c.basic_block[6].weight.data.copy_(torch.from_numpy(state_dict["res3c_branch2c"]["weights"].transpose((3,2,0,1))))
+    model.res3c.basic_block[6].bias.data.fill_(0.)
+    
+    model.res3c.basic_block[7].weight.data.copy_(torch.from_numpy(state_dict["bn3c_branch2c"]["scale"]))
+    model.res3c.basic_block[7].bias.data.copy_(torch.from_numpy(state_dict["bn3c_branch2c"]["bias"]))
+    model.res3c.basic_block[7].running_mean.data.copy_(torch.from_numpy(state_dict["bn3c_branch2c"]["mean"]))
+    model.res3c.basic_block[7].running_var.data.copy_(torch.from_numpy(state_dict["bn3c_branch2c"]["var"]))  
 
     ##########################################################################################
     # Res4a block
-    for i in range(1,3):
-        model.res4a.conv_block[i].weight.data = torch.from_numpy(state_dict[i+97]["weights"][0])
-        if (len(state_dict[i+97]["weights"]) > 1):
-            model.res4a.conv_block[i].bias.data = torch.from_numpy(state_dict[i+97]["weights"][1])
-        else:
-            nn.init.constant_(model.res4a.basic_block[i].bias.data, 0.)
+    # -- branch1 -> conv block
+    model.res4a.conv_block[0].weight.data.copy_(torch.from_numpy(state_dict["res4a_branch1"]["weights"].transpose((3,2,0,1))))
+    model.res4a.conv_block[0].bias.data.fill_(0.)
+
+    model.res4a.conv_block[1].weight.data.copy_(torch.from_numpy(state_dict["bn4a_branch1"]["scale"]))
+    model.res4a.conv_block[1].bias.data.copy_(torch.from_numpy(state_dict["bn4a_branch1"]["bias"]))
+    model.res4a.conv_block[1].running_mean.data.copy_(torch.from_numpy(state_dict["bn4a_branch1"]["mean"]))
+    model.res4a.conv_block[1].running_var.data.copy_(torch.from_numpy(state_dict["bn4a_branch1"]["var"]))
     
-        # skip 3,7 for relu layer
-    for i in [0,1,2,4,5,6,8,9,10]:
-        model.res4a.basic_block[i].weight.data = torch.from_numpy(state_dict[i+100]["weights"][0])
-        if (len(state_dict[i+100]["weights"]) > 1):
-            model.res4a.basic_block[i].bias.data = torch.from_numpy(state_dict[i+100]["weights"][1])
-        else:
-            nn.init.constant_(model.res4a.basic_block[i].bias.data, 0.)
+    # --branch2 -> conv_block 
+    model.res4a.basic_block[0].weight.data.copy_(torch.from_numpy(state_dict["res4a_branch2a"]["weights"].transpose((3,2,0,1))))
+    model.res4a.basic_block[0].bias.data.fill_(0.)
+    
+    model.res4a.basic_block[1].weight.data.copy_(torch.from_numpy(state_dict["bn4a_branch2a"]["scale"]))
+    model.res4a.basic_block[1].bias.data.copy_(torch.from_numpy(state_dict["bn4a_branch2a"]["bias"]))
+    model.res4a.basic_block[1].running_mean.data.copy_(torch.from_numpy(state_dict["bn4a_branch2a"]["mean"]))
+    model.res4a.basic_block[1].running_var.data.copy_(torch.from_numpy(state_dict["bn4a_branch2a"]["var"]))
+
+    model.res4a.basic_block[3].weight.data.copy_(torch.from_numpy(state_dict["res4a_branch2b"]["weights"].transpose((3,2,0,1))))
+    model.res4a.basic_block[3].bias.data.fill_(0.)
+    
+    model.res4a.basic_block[4].weight.data.copy_(torch.from_numpy(state_dict["bn4a_branch2b"]["scale"]))
+    model.res4a.basic_block[4].bias.data.copy_(torch.from_numpy(state_dict["bn4a_branch2b"]["bias"]))
+    model.res4a.basic_block[4].running_mean.data.copy_(torch.from_numpy(state_dict["bn4a_branch2b"]["mean"]))
+    model.res4a.basic_block[4].running_var.data.copy_(torch.from_numpy(state_dict["bn4a_branch2b"]["var"]))
+
+    model.res4a.basic_block[6].weight.data.copy_(torch.from_numpy(state_dict["res4a_branch2c"]["weights"].transpose((3,2,0,1))))
+    model.res4a.basic_block[6].bias.data.fill_(0.)
+    
+    model.res4a.basic_block[7].weight.data.copy_(torch.from_numpy(state_dict["bn4a_branch2c"]["scale"]))
+    model.res4a.basic_block[7].bias.data.copy_(torch.from_numpy(state_dict["bn4a_branch2c"]["bias"]))
+    model.res4a.basic_block[7].running_mean.data.copy_(torch.from_numpy(state_dict["bn4a_branch2c"]["mean"]))
+    model.res4a.basic_block[7].running_var.data.copy_(torch.from_numpy(state_dict["bn4a_branch2c"]["var"]))
 
     # Res4b block
-    for i in [0,1,2,4,5,6,8,9,10]:
-        model.res4b.basic_block[i].weight.data = torch.from_numpy(state_dict[i+114]["weights"][0])
-        if (len(state_dict[i+114]["weights"]) > 1):
-            model.res4b.basic_block[i].bias.data = torch.from_numpy(state_dict[i+114]["weights"][1])
-        else:
-            nn.init.constant_(model.res4b.basic_block[i].bias.data, 0.)
+    # --branch2 -> conv_block 
+    model.res4b.basic_block[0].weight.data.copy_(torch.from_numpy(state_dict["res4b_branch2a"]["weights"].transpose((3,2,0,1))))
+    model.res4b.basic_block[0].bias.data.fill_(0.)
+    
+    model.res4b.basic_block[1].weight.data.copy_(torch.from_numpy(state_dict["bn4b_branch2a"]["scale"]))
+    model.res4b.basic_block[1].bias.data.copy_(torch.from_numpy(state_dict["bn4b_branch2a"]["bias"]))
+    model.res4b.basic_block[1].running_mean.data.copy_(torch.from_numpy(state_dict["bn4b_branch2a"]["mean"]))
+    model.res4b.basic_block[1].running_var.data.copy_(torch.from_numpy(state_dict["bn4b_branch2a"]["var"]))
 
-    # Res4c block
-    for i in [0,1,2,4,5,6,8,9,10]:
-        model.res4c.basic_block[i].weight.data = torch.from_numpy(state_dict[i+128]["weights"][0])
-        if (len(state_dict[i+10]["weights"]) > 1):
-            model.res4c.basic_block[i].bias.data = torch.from_numpy(state_dict[i+128]["weights"][1])
-        else:
-            nn.init.constant_(model.res4c.basic_block[i].bias.data, 0.) 
+    model.res4b.basic_block[3].weight.data.copy_(torch.from_numpy(state_dict["res4b_branch2b"]["weights"].transpose((3,2,0,1))))
+    model.res4b.basic_block[3].bias.data.fill_(0.)
+    
+    model.res4b.basic_block[4].weight.data.copy_(torch.from_numpy(state_dict["bn4b_branch2b"]["scale"]))
+    model.res4b.basic_block[4].bias.data.copy_(torch.from_numpy(state_dict["bn4b_branch2b"]["bias"]))
+    model.res4b.basic_block[4].running_mean.data.copy_(torch.from_numpy(state_dict["bn4b_branch2b"]["mean"]))
+    model.res4b.basic_block[4].running_var.data.copy_(torch.from_numpy(state_dict["bn4b_branch2b"]["var"]))
 
-    # Res4d block
-    for i in [0,1,2,4,5,6,8,9,10]:
-        model.res4c.basic_block[i].weight.data = torch.from_numpy(state_dict[i+142]["weights"][0])
-        if (len(state_dict[i+142]["weights"]) > 1):
-            model.res4c.basic_block[i].bias.data = torch.from_numpy(state_dict[i+142]["weights"][1])
-        else:
-            nn.init.constant_(model.res4c.basic_block[i].bias.data, 0.) 
+    model.res4b.basic_block[6].weight.data.copy_(torch.from_numpy(state_dict["res4b_branch2c"]["weights"].transpose((3,2,0,1))))
+    model.res4b.basic_block[6].bias.data.fill_(0.)
+    
+    model.res4b.basic_block[7].weight.data.copy_(torch.from_numpy(state_dict["bn4b_branch2c"]["scale"]))
+    model.res4b.basic_block[7].bias.data.copy_(torch.from_numpy(state_dict["bn4b_branch2c"]["bias"]))
+    model.res4b.basic_block[7].running_mean.data.copy_(torch.from_numpy(state_dict["bn4b_branch2c"]["mean"]))
+    model.res4b.basic_block[7].running_var.data.copy_(torch.from_numpy(state_dict["bn4b_branch2c"]["var"]))
+
+    # Res4c block    
+    # --branch2 -> basic_block 
+    model.res4c.basic_block[0].weight.data.copy_(torch.from_numpy(state_dict["res4c_branch2a"]["weights"].transpose((3,2,0,1))))
+    model.res4c.basic_block[0].bias.data.fill_(0.)
+    
+    model.res4c.basic_block[1].weight.data.copy_(torch.from_numpy(state_dict["bn4c_branch2a"]["scale"]))
+    model.res4c.basic_block[1].bias.data.copy_(torch.from_numpy(state_dict["bn4c_branch2a"]["bias"]))
+    model.res4c.basic_block[1].running_mean.data.copy_(torch.from_numpy(state_dict["bn4c_branch2a"]["mean"]))
+    model.res4c.basic_block[1].running_var.data.copy_(torch.from_numpy(state_dict["bn4c_branch2a"]["var"]))
+
+    model.res4c.basic_block[3].weight.data.copy_(torch.from_numpy(state_dict["res4c_branch2b"]["weights"].transpose((3,2,0,1))))
+    model.res4c.basic_block[3].bias.data.fill_(0.)
+    
+    model.res4c.basic_block[4].weight.data.copy_(torch.from_numpy(state_dict["bn4c_branch2b"]["scale"]))
+    model.res4c.basic_block[4].bias.data.copy_(torch.from_numpy(state_dict["bn4c_branch2b"]["bias"]))
+    model.res4c.basic_block[4].running_mean.data.copy_(torch.from_numpy(state_dict["bn4c_branch2b"]["mean"]))
+    model.res4c.basic_block[4].running_var.data.copy_(torch.from_numpy(state_dict["bn4c_branch2b"]["var"]))
+
+    model.res4c.basic_block[6].weight.data.copy_(torch.from_numpy(state_dict["res4c_branch2c"]["weights"].transpose((3,2,0,1))))
+    model.res4c.basic_block[6].bias.data.fill_(0.)
+    
+    model.res4c.basic_block[7].weight.data.copy_(torch.from_numpy(state_dict["bn4c_branch2c"]["scale"]))
+    model.res4c.basic_block[7].bias.data.copy_(torch.from_numpy(state_dict["bn4c_branch2c"]["bias"]))
+    model.res4c.basic_block[7].running_mean.data.copy_(torch.from_numpy(state_dict["bn4c_branch2c"]["mean"]))
+    model.res4c.basic_block[7].running_var.data.copy_(torch.from_numpy(state_dict["bn4c_branch2c"]["var"]))
+    
+    # Res4d block    
+    # --branch2 -> basic_block 
+    model.res4d.basic_block[0].weight.data.copy_(torch.from_numpy(state_dict["res4d_branch2a"]["weights"].transpose((3,2,0,1))))
+    model.res4d.basic_block[0].bias.data.fill_(0.)
+    
+    model.res4d.basic_block[1].weight.data.copy_(torch.from_numpy(state_dict["bn4d_branch2a"]["scale"]))
+    model.res4d.basic_block[1].bias.data.copy_(torch.from_numpy(state_dict["bn4d_branch2a"]["bias"]))
+    model.res4d.basic_block[1].running_mean.data.copy_(torch.from_numpy(state_dict["bn4d_branch2a"]["mean"]))
+    model.res4d.basic_block[1].running_var.data.copy_(torch.from_numpy(state_dict["bn4d_branch2a"]["var"]))
+
+    model.res4d.basic_block[3].weight.data.copy_(torch.from_numpy(state_dict["res4d_branch2b"]["weights"].transpose((3,2,0,1))))
+    model.res4d.basic_block[3].bias.data.fill_(0.)
+    
+    model.res4d.basic_block[4].weight.data.copy_(torch.from_numpy(state_dict["bn4d_branch2b"]["scale"]))
+    model.res4d.basic_block[4].bias.data.copy_(torch.from_numpy(state_dict["bn4d_branch2b"]["bias"]))
+    model.res4d.basic_block[4].running_mean.data.copy_(torch.from_numpy(state_dict["bn4d_branch2b"]["mean"]))
+    model.res4d.basic_block[4].running_var.data.copy_(torch.from_numpy(state_dict["bn4d_branch2b"]["var"]))
+
+    model.res4d.basic_block[6].weight.data.copy_(torch.from_numpy(state_dict["res4d_branch2c"]["weights"].transpose((3,2,0,1))))
+    model.res4d.basic_block[6].bias.data.fill_(0.)
+    
+    model.res4d.basic_block[7].weight.data.copy_(torch.from_numpy(state_dict["bn4d_branch2c"]["scale"]))
+    model.res4d.basic_block[7].bias.data.copy_(torch.from_numpy(state_dict["bn4d_branch2c"]["bias"]))
+    model.res4d.basic_block[7].running_mean.data.copy_(torch.from_numpy(state_dict["bn4d_branch2c"]["mean"]))
+    model.res4d.basic_block[7].running_var.data.copy_(torch.from_numpy(state_dict["bn4d_branch2c"]["var"]))
     
     ###################################################################################################
     # Conv4e
-    for i in range(3):
-        model.conv4e[i].weight.data = torch.from_numpy(state_dict[i+155]["weights"][0])
-        if (len(state_dict[i+155]["weights"]) > 1):
-            model.conv4e[i].bias.data = torch.from_numpy(state_dict[i+155]["weights"][1])
-        else:
-            nn.init.constant_(model.conv4e[i].bias.data, 0.) 
+    model.conv4e[0].weight.data.copy_(torch.from_numpy(state_dict["conv4e"]["weights"].transpose((3,2,0,1))))
+    model.conv4e[0].bias.data.fill_(0.)
+    model.conv4e[1].weight.data.copy_(torch.from_numpy(state_dict["bn4e"]["scale"]))
+    model.conv4e[1].bias.data.copy_(torch.from_numpy(state_dict["bn4e"]["bias"]))
+    model.conv4e[1].running_mean.data.copy_(torch.from_numpy(state_dict["bn4e"]["mean"]))
+    model.conv4e[1].running_var.data.copy_(torch.from_numpy(state_dict["bn4e"]["var"]))
     
     # Conv4f 
-    for i in range(3):
-        model.conv4f[i].weight.data = torch.from_numpy(state_dict[i+159]["weights"][0])
-        if (len(state_dict[i+159]["weights"]) > 1):
-            model.conv4f[i].bias.data = torch.from_numpy(state_dict[i+159]["weights"][1])
-        else:
-            nn.init.constant_(model.conv4f[i].bias.data, 0.) 
+    model.conv4f[0].weight.data.copy_(torch.from_numpy(state_dict["conv4f"]["weights"].transpose((3,2,0,1))))
+    model.conv4f[0].bias.data.fill_(0.)
 
-    model.heatmap_conv.weight.data = torch.from_numpy(state_dict[164]["weights"][0])
-    model.heatmap_upsample.weight.data = torch.from_numpy(state_dict[165]["weights"][0]) 
+    model.conv4f[1].weight.data.copy_(torch.from_numpy(state_dict["bn4f"]["scale"]))
+    model.conv4f[1].bias.data.copy_(torch.from_numpy(state_dict["bn4f"]["bias"]))
+    model.conv4f[1].running_mean.data.copy_(torch.from_numpy(state_dict["bn4f"]["mean"]))
+    model.conv4f[1].running_var.data.copy_(torch.from_numpy(state_dict["bn4f"]["var"]))
+    
+    ##########################################################################################################
+    # Heatmap_conv
+    model.heatmap_conv.weight.data.copy_(torch.from_numpy(state_dict["conv_heatmaps5b"]["weights"].transpose((3,2,0,1))))
+    model.heatmap_conv.bias.data.fill_(0.)
 
-    model.fc1.weight.data = torch.from_numpy(state_dict[167]["weights"][0])
-    model.fc1.bias.data = torch.from_numpy(state_dict[167]["weights"][1])
-    model.fc2.weight.data = torch.from_numpy(state_dict[168]["weights"][0])
-    model.fc2.bias.data = torch.from_numpy(state_dict[168]["weights"][1])
+    """ >>>TODO: fix the copy with deconvolution layer(the copy is not correct) """
+    model.heatmap_upsample1.weight.data.copy_(torch.from_numpy(state_dict["upsample_heatmap_4f"]["weights"].transpose((3,2,0,1))))
+    model.heatmap_upsample1.bias.data.fill_(0.)
+    
+    model.heatmap_upsample2.weight.data.copy_(torch.from_numpy(state_dict["upsample_heatmap_final"]["weights"].transpose((3,2,0,1))))
+    model.heatmap_upsample2.bias.data.fill_(0.)
 
+    # Joints Regression
+    model.fc1.weight.data.copy_(torch.from_numpy(state_dict["fc_joints3D_1_final_1"]["weights"]))
+    model.fc1.bias.data.copy_(torch.from_numpy(state_dict["fc_joints3D_1_final_1"]["bias"]))
+
+    model.fc2.weight.data.copy_(torch.from_numpy(state_dict["joints3D_prediction_final_1"]["weights"]))
+    model.fc2.bias.data.copy_(torch.from_numpy(state_dict["joints3D_prediction_final_1"]["bias"]))
 
 mean_dict = \
 {

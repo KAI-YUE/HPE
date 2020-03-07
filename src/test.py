@@ -142,13 +142,15 @@ def PRe_test(model, output_dir, device="cuda"):
     already_sampled = 0
 
     # Plot rows x cols to show results
-    plot_rows = 1
-    plot_cols = 4
+    plot_rows = 4
+    plot_cols = 7
     num_parts = 21
     root_index = 9
+    max_depth = 1000
+    pos_scale = 1000
 
     L = PReCriterion()
-
+    
     for root, dirs, files in os.walk(config.test_dir):
 
         new_dir = os.path.join(root.replace(config.test_dir, output_dir))
@@ -161,85 +163,79 @@ def PRe_test(model, output_dir, device="cuda"):
                 with open(os.path.join(root, f), "rb") as fp:
                     a_set = pickle.load(fp)
                 
-                pos = 1000*a_set["3d_pos"] + a_set["root_pos"]
-                gt_pos = pos.copy()
-                pos -= pos[0]
-                _05_vec = pos[5] 
-                _09_vec = pos[9]
-                z_body_frame = np.cross(_05_vec, _09_vec)
-                
-                # Normalize the y axis and z axis in the body frame
-                y_body_frame = _09_vec / np.linalg.norm(_09_vec)
-                z_body_frame = z_body_frame / np.linalg.norm(z_body_frame)
-                x_body_frame = np.cross(y_body_frame, z_body_frame).reshape(-1,1)
-                
-                y_body_frame = y_body_frame.reshape((-1,1))
-                z_body_frame = z_body_frame.reshape((-1,1))
-                
-                R = np.array([[0,0,1],[1,0,0],[0,1,0]]) @ \
-                    np.hstack((y_body_frame, z_body_frame, x_body_frame)).T
-
-                ROI = a_set["ROI"]
                 img = a_set["cropped_img"]
                 depth = a_set["cropped_depth"]
-                Img = torch.from_numpy(np.dstack((depth, img)).transpose((2,0,1))).to(torch.float32)
-                Img = Img[None, ...].to(device)
-
-                result = model(Img)
-
-                fig, axs = plt.subplots(nrows=plot_rows, ncols=plot_cols, figsize=(20, 15))
-                                
-                # Plot the original image
-                axs[0].set_axis_off()
-                axs[0].set_title("Original")  
-                axs[0].imshow((255*a_set["img"]).astype("uint8"))
-                img = (255*a_set["cropped_img"]).astype("uint8")
-
-                _3d_pos_arr_ = np.zeros((21,3))
-                _3d_pos_arr_[1:] = result["pos"].cpu().detach().view(20,3).numpy().copy()
-                gt_3d_arr = a_set["norm_3d_pos"].copy()
-                R_inv = np.linalg.inv(R)
-                for i in range(_3d_pos_arr_.shape[0]):
-                    _3d_pos_arr_[i] = R_inv @ _3d_pos_arr_[i] + gt_pos[0]
-                    gt_3d_arr[i] = R_inv @ gt_3d_arr[i] + gt_pos[0]
-
-                _3d_error = np.mean( np.sqrt(np.sum( (_3d_pos_arr_ - gt_pos)**2, axis=1 )) )
-                _2d_pos_arr_ = project2plane(_3d_pos_arr_)
-                _2d_pos_arr_[:,0] = (_2d_pos_arr_[:,0] - ROI[2])*a_set["scale_factors"][1]
-                _2d_pos_arr_[:,1] = (_2d_pos_arr_[:,1] - ROI[0])*a_set["scale_factors"][0]
-
-                axs[1].set_axis_off()
-                axs[1].set_title("3d Pred {:.2f}".format(_3d_error))
-                plot_joint(img, _2d_pos_arr_, axs[1])
-
-                # Plot the original link results
-                ori_error = np.mean( np.sqrt(np.sum( (result["pos"].cpu().detach().view(20,3).numpy() - a_set["norm_3d_pos"][1:])**2, axis=1 )) )
-
-                axs[2].set_axis_off()
-                axs[2].set_title("Ground Truth {:.2f}".format(ori_error))  
+                ROI = a_set["ROI"]
+                _3d_pos = 1000*a_set["3d_pos"] + a_set["root_pos"]
                 _2d_pos = a_set["2d_pos"]
-                _2d_pos[:,0] = (_2d_pos[:,0] - ROI[2]) * a_set["scale_factors"][1]
-                _2d_pos[:,1] = (_2d_pos[:,1] - ROI[0])* a_set["scale_factors"][0]
-                plot_joint(img, _2d_pos, axs[2])
-
-                pos = torch.from_numpy(a_set['norm_3d_pos'].astype('float32'))
-                pos = pos[None, 1:, :]
-                loss = L(result["pos"], pos.to(device))
-                axs[3].set_axis_off()
-                axs[3].set_title("Append")
-                _2d_pos_arr_ = project2plane(gt_3d_arr)
-                _2d_pos_arr_[:,0] = (_2d_pos_arr_[:,0] - ROI[2])*a_set["scale_factors"][1]
-                _2d_pos_arr_[:,1] = (_2d_pos_arr_[:,1] - ROI[0])*a_set["scale_factors"][0]
-                plot_joint(img, _2d_pos_arr_, axs[3])
                 
-                fig.savefig(os.path.join(new_dir, f[:8] + ".jpg"))
-                # np.save(os.path.join(new_dir, f[:8] + "hm.npy"), hms)
+                data = np.dstack((depth, img)).astype('float32')
+                data = torch.from_numpy(data.transpose((2,0,1))).to(torch.float32)
+                result = model(data[None,...].to(device))
 
+                hms = result['hms'].cpu().detach().squeeze().numpy()
+                hms = cv2.resize(hms.transpose((1,2,0)), tuple(config.cropped_size)).transpose((2,0,1))
+                pos = pos_scale*result['pos'].cpu().detach().squeeze().numpy()
+                index = 0
+                
+                fig, axs = plt.subplots(nrows=plot_rows, ncols=plot_cols, figsize=(20, 15))
+                hm_index = 0
+                for r in range(1, plot_rows):
+                    for c in range(plot_cols):
+                        hm = hms[hm_index]
+                        heatmap = Heatmap(hm)
+
+                        composite = (alpha*255*img + (1-alpha)*heatmap[...,::-1]).astype(np.uint8)
+                        axs[r, c].set_axis_off()
+                        axs[r, c].set_title(Part_Namelist[hm_index])
+                        axs[r, c].imshow(composite)
+                        
+                        hm_index += 1
+                        if hm_index == num_parts:
+                            break
+                
+                # Plot the original image
+                axs[0,0].set_axis_off()
+                axs[0,0].imshow((255*a_set["img"]).astype("uint8"))
+                
+                # Plot the cropped image
+                img = (255*img).astype("uint8")
+                axs[0,1].set_axis_off()
+                axs[0,1].imshow(img)
+                
+                # Plot 2d link result
+                pred_2dpos = naive_pos_from_heatmaps(hms[:-1])
+                axs[0,2].set_axis_off()
+                plot_joint(img, pred_2dpos, axs[0,2])
+                
+                pred_2dpos[:,0] = pred_2dpos[:,0]/a_set["scale_factors"][1] + ROI[2]  
+                pred_2dpos[:,1] = pred_2dpos[:,1]/a_set["scale_factors"][0] + ROI[0]
+                _2d_error = np.mean(np.sqrt(np.sum((pred_2dpos-_2d_pos)**2, axis=1)))
+                axs[0,2].set_title("2d error {:.2f}".format(_2d_error))
+                
+                # Plot 3d projected result
+                depth = a_set["depth"]
+                root_pos = back_project(pred_2dpos[root_index], depth[pred_2dpos[root_index, 1], pred_2dpos[root_index, 0]])        
+                pos += root_pos
+                proj_2dpos = project2plane(pos)
+                proj_2dpos[:,0] = (proj_2dpos[:,0] - ROI[2]) * a_set["scale_factors"][1]
+                proj_2dpos[:,1] = (proj_2dpos[:,1] - ROI[0]) * a_set["scale_factors"][0]
+                _3d_error = np.mean(np.sqrt(np.sum((pos-_3d_pos)**2, axis=1)))
+
+                axs[0,3].set_axis_off()
+                plot_joint(img, proj_2dpos, axs[0,3])
+                axs[0,3].set_title("3d error {:.2f}".format(_3d_error))
+
+                # Plot the original link result
+                _2d_pos[:,0] = (_2d_pos[:,0] - ROI[2])*a_set["scale_factors"][1]
+                _2d_pos[:,1] = (_2d_pos[:,1] - ROI[0])*a_set["scale_factors"][0]
+                axs[0,4].set_axis_off()
+                axs[0,4].set_title("Ori")
+                plot_joint(img, _2d_pos, axs[0,4])
+
+                plt.savefig(os.path.join(new_dir, f[:-4]+"_pos.png"))
                 plt.close(fig)
-                sampled_in_folder += 1
-                if (sampled_in_folder > config.samples_per_folder):
-                    break
-                
+
             already_sampled += sampled_in_folder
             if (sampled_in_folder > config.test_samples):
                 break

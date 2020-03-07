@@ -90,6 +90,7 @@ def main(mode=None, model_path=None):
                 PRe_train(model, optimizer, device, epoch)       
         
         elif (mode < 6):
+
             model = HLoNet() if mode == 4 else PReNet()
             model.to(device)
 
@@ -99,6 +100,8 @@ def main(mode=None, model_path=None):
                 HLo_test(model, config.test_output_dir, device=device, mode=1)
             elif mode == 5:
                 load_pretrained_weights(config.pretrained_model_dir, model)
+                model.to(device)
+                model.eval()
                 PRe_test(model, config.test_output_dir, device=device)
 
     else:
