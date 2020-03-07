@@ -42,20 +42,20 @@ def main(mode=None, model_path=None):
         # Initialize the HLoNet
         if mode == 0:
             model = HLoNet()
+            model.apply(init_weights)
         elif mode == 1:
             model = PReNet()
+            load_pretrained_weights(config.pretrained_model_dir, model)
+            # model.init_finalFC(config.PCA_weight_file)
+            freeze_layers(model)
 
-        model.apply(init_weights)
         model.to(device)
-
-        if mode ==1:
-            model.init_finalFC(config.PCA_weight_file, device=device)
 
         # Initialize the optimizer 
         optimizer = optim.Adam(
             params = model.parameters(),
             lr = config.learning_rate,
-            weight_decay=0.0005
+            weight_decay=0.005
         )
 
         if mode == 0:

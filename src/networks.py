@@ -58,9 +58,8 @@ class PReNet(nn.Module):
         super(PReNet, self).__init__()
 
         self.conv1 = nn.Sequential( 
-            nn.Conv2d(in_channels=in_dim, out_channels=64, kernel_size=7, stride=1, padding=3),
+            nn.Conv2d(in_channels=in_dim, out_channels=64, kernel_size=7, stride=2, padding=3),
             nn.BatchNorm2d(64),
-            ScaleLayer(64),
             nn.ReLU())
         self.maxpool = nn.MaxPool2d(kernel_size=3, stride=2)
         
@@ -80,35 +79,30 @@ class PReNet(nn.Module):
         self.conv4e = nn.Sequential(
             nn.Conv2d(in_channels=1024, out_channels=512, kernel_size=3, stride=1, padding=1),
             nn.BatchNorm2d(512),
-            ScaleLayer(512),
             nn.ReLU())
 
         self.conv4f = nn.Sequential(
             nn.Conv2d(in_channels=512, out_channels=256, kernel_size=3, stride=1, padding=1),
             nn.BatchNorm2d(256),
-            ScaleLayer(512),
             nn.ReLU())
-
-        self.heatmap_conv = nn.Conv2d(in_channels=512, out_channels=64, kernel_size=3, stride=1, padding=1)
-        self.heatmap_upsample = nn.ConvTranspose2d(in_channels=64, out_channels=21, kernel_size=4, stride=2, padding=1)
         
-        self.fc1 = nn.Linear(256*8**2, 200)
-        self.fc2 = nn.Linear(200, 63)
+        self.fc1 = nn.Linear(256*8**2, 201)
+        self.fc2 = nn.Linear(201, 63)
         # self.fc3 = nn.Linear(20, 60)
 
-    def init_finalFC(self, src_dir, device="cuda"):
+    def init_finalFC(self, src_dir):
         """
         Initialize the weights of the last fully-connected layer with PCA. 
         """
         with open(src_dir, "rb") as fp:
             a_set = pickle.load(fp)
 
-        self.fc3.weight.data = torch.from_numpy(a_set["weight"]).to(torch.float32).to(device)
-        self.fc3.bias.data = torch.from_numpy(a_set["bias"]).to(torch.float32).to(device)
+        self.fc3.weight.data.copy_(torch.from_numpy(a_set["weight"]).to(torch.float32))
+        self.fc3.bias.data.copy_(torch.from_numpy(a_set["bias"]).to(torch.float32))
 
     def forward(self, x):
         x = self.conv1(x)
-        x = self.maxpool(x)
+        x = self.maxpool(F.pad(x,(0,1,0,1)))
 
         x = self.res2a(x)
         x = self.res2b(x)
@@ -126,14 +120,11 @@ class PReNet(nn.Module):
         x = self.conv4e(x)
         x = self.conv4f(x)
 
-        hms = self.heatmap_conv(x)
-        hms = F.interpolate(hms)
-
         pos = self.fc1(x.view(x.shape[0], -1))
         pos = self.fc2(pos.view(pos.shape[0], -1))
-        # pos = self.fc3(x.view(x.shape[0], -1))
+        # pos = self.fc3(pos.view(pos.shape[0], -1))
 
-        return dict(pos=pos.view(pos.shape[0], 1, 20, 3), hms=hms)
+        return dict(pos=pos.view(pos.shape[0], 1, -1, 3))
 
 
 class Skip_ResnetBlock(nn.Module):
@@ -143,17 +134,14 @@ class Skip_ResnetBlock(nn.Module):
         self.basic_block = nn.Sequential(
             nn.Conv2d(in_channels=in_dim, out_channels=inter_dim, kernel_size=1, stride=stride, padding=0),
             nn.BatchNorm2d(inter_dim),
-            ScaleLayer(inter_dim),
             nn.ReLU(),
 
             nn.Conv2d(in_channels=inter_dim, out_channels=inter_dim, kernel_size=3, padding=1),
             nn.BatchNorm2d(inter_dim),
-            ScaleLayer(inter_dim),
             nn.ReLU(),
 
             nn.Conv2d(in_channels=inter_dim, out_channels=out_dim, kernel_size=1, padding=0),
             nn.BatchNorm2d(out_dim),
-            ScaleLayer(out_dim),
         )
 
     def forward(self, x):
@@ -170,23 +158,19 @@ class Conv_ResnetBlock(nn.Module):
         self.basic_block = nn.Sequential(
             nn.Conv2d(in_channels=in_dim, out_channels=inter_dim, kernel_size=1, stride=stride, padding=0),
             nn.BatchNorm2d(inter_dim),
-            ScaleLayer(inter_dim),
             nn.ReLU(),
 
             nn.Conv2d(in_channels=inter_dim, out_channels=inter_dim, kernel_size=3, padding=1),
             nn.BatchNorm2d(inter_dim),
-            ScaleLayer(inter_dim),
             nn.ReLU(),
 
             nn.Conv2d(in_channels=inter_dim, out_channels=out_dim, kernel_size=1, padding=0),
             nn.BatchNorm2d(out_dim),
-            ScaleLayer(out_dim)
         )
 
         self.conv_block = nn.Sequential(
             nn.Conv2d(in_channels=in_dim, out_channels=out_dim, kernel_size=1, stride=stride, padding=0),
             nn.BatchNorm2d(out_dim),
-            ScaleLayer(out_dim)
         )
 
     def forward(self, x):
@@ -206,15 +190,6 @@ class ConvTransBlock(nn.Module):
         
     def forward(self, x):
         return self.convT_block(x)
-
-class ScaleLayer(nn.Module):
-    def __init__(self, in_dim):
-        super().__init__()
-        self.weight = nn.Parameter(torch.randn(in_dim))
-        self.bias = nn.Parameter(torch.randn(in_dim))
-
-    def forward(self, input):
-        return input * self.scale + self.bias
 
 def init_weights(module, init_type='normal', gain=0.02):
     '''
