@@ -163,6 +163,7 @@ def PRe_test(model, output_dir, device="cuda"):
                 
                 pos = 1000*a_set["3d_pos"] + a_set["root_pos"]
                 gt_pos = pos.copy()
+                pos -= pos[0]
                 ROI = a_set["ROI"]
                 img = a_set["cropped_img"]
                 depth = a_set["cropped_depth"]
@@ -170,7 +171,7 @@ def PRe_test(model, output_dir, device="cuda"):
                 Img = Img[None, ...].to(device)
 
                 result = model(Img, torch.from_numpy(a_set["R_inv"].astype("float32")[None,...]).to(device))
-
+                loss = L(result["pos"], torch.from_numpy(pos[1:].astype("float32")/1000).view(1,1,-1,3).to(device))
                 fig, axs = plt.subplots(nrows=plot_rows, ncols=plot_cols, figsize=(20, 15))
                                 
                 # Plot the original image
