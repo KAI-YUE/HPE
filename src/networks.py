@@ -86,9 +86,9 @@ class PReNet(nn.Module):
             nn.BatchNorm2d(256),
             nn.ReLU())
         
-        self.fc1 = nn.Linear(256*8**2, 201)
-        self.fc2 = nn.Linear(201, 63)
-        # self.fc3 = nn.Linear(20, 60)
+        self.fc1 = nn.Linear(256*8**2, 256)
+        self.fc2 = nn.Linear(256, 20)
+        self.fc3 = nn.Linear(20, 60)
 
     def init_finalFC(self, src_dir):
         """
@@ -100,7 +100,7 @@ class PReNet(nn.Module):
         self.fc3.weight.data.copy_(torch.from_numpy(a_set["weight"]).to(torch.float32))
         self.fc3.bias.data.copy_(torch.from_numpy(a_set["bias"]).to(torch.float32))
 
-    def forward(self, x):
+    def forward(self, x, R_inv):
         x = self.conv1(x)
         x = self.maxpool(F.pad(x,(0,1,0,1)))
 
@@ -122,9 +122,11 @@ class PReNet(nn.Module):
 
         pos = self.fc1(x.view(x.shape[0], -1))
         pos = self.fc2(pos.view(pos.shape[0], -1))
-        # pos = self.fc3(pos.view(pos.shape[0], -1))
+        pos = self.fc3(pos.view(pos.shape[0], -1))
 
-        return dict(pos=pos.view(pos.shape[0], 1, -1, 3))
+        pos = pos.view(pos.shape[0], -1, 3)
+        pos = (R_inv @ pos.transpose(-1,-2)).transpose(-1,-2)
+        return dict(pos=pos[:,None,...])
 
 
 class Skip_ResnetBlock(nn.Module):

@@ -554,6 +554,13 @@ def load_pretrained_weights(model_dir, model):
     model.conv4f[1].running_mean.data.copy_(torch.from_numpy(state_dict["bn4f"]["mean"]))
     model.conv4f[1].running_var.data.copy_(torch.from_numpy(state_dict["bn4f"]["var"]))
     
+    # Joints Regression
+    # model.fc1.weight.data.copy_(torch.from_numpy(state_dict["fc_joints3D_1_final_1"]["weights"]))
+    # model.fc1.bias.data.copy_(torch.from_numpy(state_dict["fc_joints3D_1_final_1"]["bias"]))
+
+    # model.fc2.weight.data.copy_(torch.from_numpy(state_dict["joints3D_prediction_final_1"]["weights"]))
+    # model.fc2.bias.data.copy_(torch.from_numpy(state_dict["joints3D_prediction_final_1"]["bias"]))
+
 
 mean_dict = \
 {

@@ -45,9 +45,9 @@ def main(mode=None, model_path=None):
             model.apply(init_weights)
         elif mode == 1:
             model = PReNet()
-            load_pretrained_weights(config.pretrained_model_dir, model)
-            # model.init_finalFC(config.PCA_weight_file)
-            freeze_layers(model)
+            # load_pretrained_weights(config.pretrained_model_dir, model)
+            model.init_finalFC(config.PCA_weight_file)
+            # freeze_layers(model, num_layers=12)
 
         model.to(device)
 
