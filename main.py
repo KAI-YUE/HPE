@@ -91,14 +91,14 @@ def main(mode=None, model_path=None):
         
         elif (mode < 6):
             model = HLoNet() if mode == 4 else PReNet()
+            model.eval()
             model.to(device)
 
-            # model.load_state_dict(state_dict['model'], strict=False)
+            model.load_state_dict(state_dict['model'], strict=False)
 
             if mode == 4: 
                 HLo_test(model, config.test_output_dir, device=device, mode=1)
             elif mode == 5:
-                load_pretrained_weights(config.pretrained_model_dir, model)
                 PRe_test(model, config.test_output_dir, device=device)
 
     else:

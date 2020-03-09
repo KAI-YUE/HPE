@@ -86,19 +86,8 @@ class PReNet(nn.Module):
             nn.BatchNorm2d(256),
             nn.ReLU())
         
-        self.fc1 = nn.Linear(256*8**2, 201)
-        self.fc2 = nn.Linear(201, 63)
-        # self.fc3 = nn.Linear(20, 60)
-
-    def init_finalFC(self, src_dir):
-        """
-        Initialize the weights of the last fully-connected layer with PCA. 
-        """
-        with open(src_dir, "rb") as fp:
-            a_set = pickle.load(fp)
-
-        self.fc3.weight.data.copy_(torch.from_numpy(a_set["weight"]).to(torch.float32))
-        self.fc3.bias.data.copy_(torch.from_numpy(a_set["bias"]).to(torch.float32))
+        self.fc1 = nn.Linear(256*8**2, 256)
+        self.fc2 = nn.Linear(256, 60)
 
     def forward(self, x):
         x = self.conv1(x)
