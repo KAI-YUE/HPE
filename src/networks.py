@@ -87,8 +87,8 @@ class PReNet(nn.Module):
             nn.ReLU())
         
         self.fc1 = nn.Linear(256*8**2, 256)
-        self.fc2 = nn.Linear(256, 60)
-        # self.fc3 = nn.Linear(20, 60)
+        self.fc2 = nn.Linear(256, 20)
+        self.fc3 = nn.Linear(20, 60)
 
     def init_finalFC(self, src_dir):
         """
@@ -122,7 +122,7 @@ class PReNet(nn.Module):
 
         pos = self.fc1(x.view(x.shape[0], -1))
         pos = self.fc2(pos.view(pos.shape[0], -1))
-        # pos = self.fc3(pos.view(pos.shape[0], -1))
+        pos = self.fc3(pos.view(pos.shape[0], -1))
 
         pos = pos.view(pos.shape[0], -1, 3)
         pos = (R_inv @ pos.transpose(-1,-2)).transpose(-1,-2)
