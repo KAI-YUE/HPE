@@ -84,13 +84,11 @@ class PReDataset(Dataset):
         depth = a_set["cropped_depth"]
         Img = torch.from_numpy(np.dstack((depth, img)).transpose((2,0,1))).to(torch.float32)
         
-        # Heatmaps of different parts
-        hm = torch.from_numpy(a_set["heatmaps"]).to(torch.float32)
         
         pos = torch.from_numpy(a_set['3d_pos'].astype('float32'))
         pos = pos[None, :, :]
 
-        return dict(img=Img, hm=hm, pos=pos)
+        return dict(img=Img, pos=pos)
             
 
     def create_iterator(self, batch_size=1):

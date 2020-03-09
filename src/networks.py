@@ -89,7 +89,7 @@ class PReNet(nn.Module):
         self.fc1 = nn.Linear(256*8**2, 256)
         self.fc2 = nn.Linear(256, 60)
 
-    def forward(self, x):
+    def forward(self, x, R_inv):
         x = self.conv1(x)
         x = self.maxpool(F.pad(x,(0,1,0,1)))
 
@@ -111,9 +111,12 @@ class PReNet(nn.Module):
 
         pos = self.fc1(x.view(x.shape[0], -1))
         pos = self.fc2(pos.view(pos.shape[0], -1))
-        # pos = self.fc3(pos.view(pos.shape[0], -1))
 
-        return dict(pos=pos.view(pos.shape[0], 1, -1, 3))
+        pos = pos.view(pos.shape[0], -1, 3)
+        pos = (R_inv @ pos.transpose(-1,-2)).transpose(-1,-2)
+        
+        return dict(pos=pos[:,None,...])
+
 
 
 class Skip_ResnetBlock(nn.Module):
