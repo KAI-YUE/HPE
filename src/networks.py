@@ -87,8 +87,8 @@ class PReNet(nn.Module):
             nn.ReLU())
         
         self.fc1 = nn.Linear(256*8**2, 256)
-        self.fc2 = nn.Linear(256, 20)
-        self.fc3 = nn.Linear(20, 60)
+        self.fc2 = nn.Linear(256, 3)
+        self.fc3 = nn.Linear(3, 60)
 
     def init_finalFC(self, src_dir):
         """
