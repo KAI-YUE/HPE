@@ -46,7 +46,7 @@ def main(mode=None, model_path=None):
         elif mode == 1:
             model = PReNet()
             load_pretrained_weights(config.pretrained_model_dir, model)
-            # model.init_finalFC(config.PCA_weight_file)
+            model.init_finalFC(config.PCA_weight_file)
             freeze_layers(model, num_layers=12)
 
         model.to(device)
@@ -93,13 +93,14 @@ def main(mode=None, model_path=None):
             model = HLoNet() if mode == 4 else PReNet()
             model.to(device)
 
-            # model.load_state_dict(state_dict['model'], strict=False)
+            model.load_state_dict(state_dict['model'], strict=False)
+            model.eval()
 
             if mode == 4: 
                 HLo_test(model, config.test_output_dir, device=device, mode=1)
             elif mode == 5:
-                load_pretrained_weights(config.pretrained_model_dir, model)
-                PRe_test(model, config.test_output_dir, device=device)
+                with torch.no_grad():
+                    PRe_test(model, config.test_output_dir, device=device)
 
     else:
         Hal_dict = torch.load(model_path[0], map_location=device)

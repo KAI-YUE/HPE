@@ -84,7 +84,7 @@ class PReDataset(Dataset):
         depth = a_set["cropped_depth"]
         Img = torch.from_numpy(np.dstack((depth, img)).transpose((2,0,1)).astype("float32"))
         
-        pos = a_set['3d_pos'] + a_set["root_pos"]/1000
+        pos = 1000*a_set['3d_pos'] + a_set["root_pos"]
         pos -= pos[0]
         pos = torch.from_numpy(pos.astype("float32"))
         pos = pos[None, 1:, :]
