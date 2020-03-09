@@ -152,7 +152,7 @@ def PRe_train(model, optimizer, device="cuda", epoch=-1):
             pos = data['pos'].to(device)
 
             # Get output and calculate loss
-            output = model(image)
+            output = model(image, R_inv)
             loss = L(output["pos"], pos)
 
             # backward for PRe
@@ -184,10 +184,10 @@ def PRe_train(model, optimizer, device="cuda", epoch=-1):
                 for i, data in enumerate(val_loader, 0):
                     
                     image = data['img'].to(device)
-                    heatmap = data['hm'].to(device)
+                    R_inv = data["R_inv"].to(device)
                     pos = data['pos'].to(device)
 
-                    output = model(image)
+                    output = model(image, R_inv)
 
                     loss = L(output["pos"], pos)
                     logger.info("val loss {:.2f}".format(loss))

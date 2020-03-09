@@ -143,7 +143,7 @@ def PRe_test(model, output_dir, device="cuda"):
 
     # Plot rows x cols to show results
     plot_rows = 1
-    plot_cols = 4
+    plot_cols = 3
     num_parts = 21
     root_index = 9
 
@@ -163,29 +163,16 @@ def PRe_test(model, output_dir, device="cuda"):
                 
                 pos = 1000*a_set["3d_pos"] + a_set["root_pos"]
                 gt_pos = pos.copy()
-                pos -= pos[0]
-                _05_vec = pos[5] 
-                _09_vec = pos[9]
-                z_body_frame = np.cross(_05_vec, _09_vec)
-                
-                # Normalize the y axis and z axis in the body frame
-                y_body_frame = _09_vec / np.linalg.norm(_09_vec)
-                z_body_frame = z_body_frame / np.linalg.norm(z_body_frame)
-                x_body_frame = np.cross(y_body_frame, z_body_frame).reshape(-1,1)
-                
-                y_body_frame = y_body_frame.reshape((-1,1))
-                z_body_frame = z_body_frame.reshape((-1,1))
-                
-                R = np.array([[0,0,1],[1,0,0],[0,1,0]]) @ \
-                    np.hstack((y_body_frame, z_body_frame, x_body_frame)).T
 
                 ROI = a_set["ROI"]
                 img = a_set["cropped_img"]
                 depth = a_set["cropped_depth"]
+                R_inv = torch.from_numpy(a_set["R_inv"].astype("float32"))
+                R_inv = R_inv[None,...].to(device)
                 Img = torch.from_numpy(np.dstack((depth, img)).transpose((2,0,1))).to(torch.float32)
                 Img = Img[None, ...].to(device)
 
-                result = model(Img)
+                result = model(Img, R_inv)
 
                 fig, axs = plt.subplots(nrows=plot_rows, ncols=plot_cols, figsize=(20, 15))
                                 
@@ -196,12 +183,8 @@ def PRe_test(model, output_dir, device="cuda"):
                 img = (255*a_set["cropped_img"]).astype("uint8")
 
                 _3d_pos_arr_ = np.zeros((21,3))
-                _3d_pos_arr_[1:] = result["pos"].cpu().detach().view(20,3).numpy().copy()
-                gt_3d_arr = a_set["norm_3d_pos"].copy()
-                R_inv = np.linalg.inv(R)
-                for i in range(_3d_pos_arr_.shape[0]):
-                    _3d_pos_arr_[i] = R_inv @ _3d_pos_arr_[i] + gt_pos[0]
-                    gt_3d_arr[i] = R_inv @ gt_3d_arr[i] + gt_pos[0]
+                _3d_pos_arr_[1:] = 1000*result["pos"].cpu().detach().view(20,3).numpy().copy()
+                _3d_pos_arr_ += gt_pos[0]
 
                 _3d_error = np.mean( np.sqrt(np.sum( (_3d_pos_arr_ - gt_pos)**2, axis=1 )) )
                 _2d_pos_arr_ = project2plane(_3d_pos_arr_)
@@ -221,16 +204,6 @@ def PRe_test(model, output_dir, device="cuda"):
                 _2d_pos[:,0] = (_2d_pos[:,0] - ROI[2]) * a_set["scale_factors"][1]
                 _2d_pos[:,1] = (_2d_pos[:,1] - ROI[0])* a_set["scale_factors"][0]
                 plot_joint(img, _2d_pos, axs[2])
-
-                pos = torch.from_numpy(a_set['norm_3d_pos'].astype('float32'))
-                pos = pos[None, 1:, :]
-                loss = L(result["pos"], pos.to(device))
-                axs[3].set_axis_off()
-                axs[3].set_title("Append")
-                _2d_pos_arr_ = project2plane(gt_3d_arr)
-                _2d_pos_arr_[:,0] = (_2d_pos_arr_[:,0] - ROI[2])*a_set["scale_factors"][1]
-                _2d_pos_arr_[:,1] = (_2d_pos_arr_[:,1] - ROI[0])*a_set["scale_factors"][0]
-                plot_joint(img, _2d_pos_arr_, axs[3])
                 
                 fig.savefig(os.path.join(new_dir, f[:8] + ".jpg"))
                 # np.save(os.path.join(new_dir, f[:8] + "hm.npy"), hms)
