@@ -58,7 +58,7 @@ class PReNet(nn.Module):
         super(PReNet, self).__init__()
 
         self.conv1 = nn.Sequential( 
-            nn.Conv2d(in_channels=in_dim, out_channels=64, kernel_size=7, stride=1, padding=3),
+            nn.Conv2d(in_channels=in_dim, out_channels=64, kernel_size=7, stride=2, padding=3),
             nn.BatchNorm2d(64),
             nn.ReLU())
         self.maxpool = nn.MaxPool2d(kernel_size=3, stride=2)
@@ -91,7 +91,7 @@ class PReNet(nn.Module):
 
     def forward(self, x):
         x = self.conv1(x)
-        x = self.maxpool(x)
+        x = self.maxpool(F.pad(x,(0,1,0,1)))
 
         x = self.res2a(x)
         x = self.res2b(x)

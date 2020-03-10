@@ -120,7 +120,9 @@ def PRe_train(model, optimizer, device="cuda", epoch=-1):
     # load DAE model
     DAE = DAE_2L(60, 20, 40)
     DAE.load_state_dict(torch.load(config.DAE_weight_file))
-    freeze_layers(DAE)
+    decoder = DAE.decoder
+    decoder = decoder.to(device)
+    freeze_layers(decoder)
 
     train_data = PReDataset(config.train_dir)
     train_loader = DataLoader(train_data, batch_size=config.batch_size, drop_last=True, shuffle=True)
@@ -160,7 +162,7 @@ def PRe_train(model, optimizer, device="cuda", epoch=-1):
 
             # Get output and calculate loss
             output = model(image)
-            pred_pos = DAE(output["pos"]).view(output["pos"].shape[0], 1, -1, 3)
+            pred_pos = decoder(output["pos"]).view(output["pos"].shape[0], 1, -1, 3)
             loss = L(pred_pos, pos)
 
             # backward for PRe
@@ -177,7 +179,7 @@ def PRe_train(model, optimizer, device="cuda", epoch=-1):
         
         # save the model
         if (config.save_epoch and iteration % config.save_epoch == 0):
-            save_model(os.path.join(config.model_dir, 'PRe_epoch{}.pth'.format(epoch)), model, optimizer, epoch)
+            save_model(os.path.join(config.model_dir, 'PRe_DAE20_epoch{}.pth'.format(epoch)), model, optimizer, epoch)
 
         # validate the model
         if(config.val_epoch and epoch % config.val_epoch == 0):
