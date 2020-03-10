@@ -45,7 +45,7 @@ def main(mode=None, model_path=None):
         elif mode == 1:
             model = PReNet()
             load_pretrained_weights(config.pretrained_model_dir, model)
-            freeze_layers(model, [0,1,2,3,4,5,6,7,8,9,10,11,12])
+            freeze_layers(model, [0,1,2,3,4,5,6,7,8,9,10,11])
 
         model.to(device)
 
