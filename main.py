@@ -44,12 +44,10 @@ def main(mode=None, model_path=None):
             model = HLoNet()
         elif mode == 1:
             model = PReNet()
+            load_pretrained_weights(config.pretrained_model_dir, model)
+            freeze_layers(model, [0,1,2,3,4,5,6,7,8,9,10,11,12])
 
-        model.apply(init_weights)
         model.to(device)
-
-        if mode ==1:
-            model.init_finalFC(config.PCA_weight_file, device=device)
 
         # Initialize the optimizer 
         optimizer = optim.Adam(
@@ -93,12 +91,12 @@ def main(mode=None, model_path=None):
             model = HLoNet() if mode == 4 else PReNet()
             model.to(device)
 
-            # model.load_state_dict(state_dict['model'], strict=False)
+            model.load_state_dict(state_dict['model'], strict=False)
+            model.eval()
 
             if mode == 4: 
                 HLo_test(model, config.test_output_dir, device=device, mode=1)
             elif mode == 5:
-                load_pretrained_weights(config.pretrained_model_dir, model)
                 PRe_test(model, config.test_output_dir, device=device)
 
     else:
@@ -107,10 +105,12 @@ def main(mode=None, model_path=None):
 
         HLo = HLoNet()
         HLo.load_state_dict(Hal_dict['model'], strict=False)
+        HLo.eval()
         HLo.to(device)
 
         PRe = PReNet()
         PRe.load_state_dict(Jor_dict['model'], strict=False)
+        PRe.eval()
         PRe.to(device)
 
         if mode == 6 :
