@@ -1,4 +1,5 @@
 # Python Libraries
+import numpy as np
 import matplotlib.pyplot as plt
 
 # My Libraries
@@ -13,6 +14,8 @@ def plot_joint(img, pos_arr, axs=None):
         pos_arr:  ndarray (21 x 2): the 2d position array.
         axs:      the axes of the figure. If set to None, a new axs will be created.
     """
+    
+    validate_arr(img, pos_arr)
 
     if axs is None:
         fig = plt.figure()
@@ -58,3 +61,12 @@ def plot_joint(img, pos_arr, axs=None):
     for i in range(1, 5):
         axs.scatter(pos_arr[i,0], pos_arr[i,1], color=green)
         axs.plot([pos_arr[i-1,0], pos_arr[i,0]], [pos_arr[i-1,1], pos_arr[i, 1]], color=green, linewidth=3.5)
+
+def validate_arr(img, pos_arr):
+    """
+    Validate the pos array and avoid boundary overstepping.
+    """
+    pos_arr[:,0] = np.where(pos_arr[:,0]>=img.shape[1], img.shape[1]-1, pos_arr[:,0])
+    pos_arr[:,0] = np.where(pos_arr[:,0]<0, 0, pos_arr[:,0])
+    pos_arr[:,1] = np.where(pos_arr[:,1]>=img.shape[0], img.shape[0]-1, pos_arr[:,1])
+    pos_arr[:,1] = np.where(pos_arr[:,1]<0, 0, pos_arr[:,1])
