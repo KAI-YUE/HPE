@@ -60,7 +60,6 @@ class PReNet(nn.Module):
         self.conv1 = nn.Sequential( 
             nn.Conv2d(in_channels=in_dim, out_channels=64, kernel_size=7, stride=1, padding=3),
             nn.BatchNorm2d(64),
-            ScaleLayer(64),
             nn.ReLU())
         self.maxpool = nn.MaxPool2d(kernel_size=3, stride=2)
         
@@ -80,13 +79,11 @@ class PReNet(nn.Module):
         self.conv4e = nn.Sequential(
             nn.Conv2d(in_channels=1024, out_channels=512, kernel_size=3, stride=1, padding=1),
             nn.BatchNorm2d(512),
-            ScaleLayer(512),
             nn.ReLU())
 
         self.conv4f = nn.Sequential(
             nn.Conv2d(in_channels=512, out_channels=256, kernel_size=3, stride=1, padding=1),
             nn.BatchNorm2d(256),
-            ScaleLayer(512),
             nn.ReLU())
         
         self.fc1 = nn.Linear(256*8**2, 256)
@@ -126,17 +123,14 @@ class Skip_ResnetBlock(nn.Module):
         self.basic_block = nn.Sequential(
             nn.Conv2d(in_channels=in_dim, out_channels=inter_dim, kernel_size=1, stride=stride, padding=0),
             nn.BatchNorm2d(inter_dim),
-            ScaleLayer(inter_dim),
             nn.ReLU(),
 
             nn.Conv2d(in_channels=inter_dim, out_channels=inter_dim, kernel_size=3, padding=1),
             nn.BatchNorm2d(inter_dim),
-            ScaleLayer(inter_dim),
             nn.ReLU(),
 
             nn.Conv2d(in_channels=inter_dim, out_channels=out_dim, kernel_size=1, padding=0),
             nn.BatchNorm2d(out_dim),
-            ScaleLayer(out_dim),
         )
 
     def forward(self, x):
@@ -153,23 +147,19 @@ class Conv_ResnetBlock(nn.Module):
         self.basic_block = nn.Sequential(
             nn.Conv2d(in_channels=in_dim, out_channels=inter_dim, kernel_size=1, stride=stride, padding=0),
             nn.BatchNorm2d(inter_dim),
-            ScaleLayer(inter_dim),
             nn.ReLU(),
 
             nn.Conv2d(in_channels=inter_dim, out_channels=inter_dim, kernel_size=3, padding=1),
             nn.BatchNorm2d(inter_dim),
-            ScaleLayer(inter_dim),
             nn.ReLU(),
 
             nn.Conv2d(in_channels=inter_dim, out_channels=out_dim, kernel_size=1, padding=0),
-            nn.BatchNorm2d(out_dim),
-            ScaleLayer(out_dim)
+            nn.BatchNorm2d(out_dim)
         )
 
         self.conv_block = nn.Sequential(
             nn.Conv2d(in_channels=in_dim, out_channels=out_dim, kernel_size=1, stride=stride, padding=0),
             nn.BatchNorm2d(out_dim),
-            ScaleLayer(out_dim)
         )
 
     def forward(self, x):
@@ -189,15 +179,6 @@ class ConvTransBlock(nn.Module):
         
     def forward(self, x):
         return self.convT_block(x)
-
-class ScaleLayer(nn.Module):
-    def __init__(self, in_dim):
-        super().__init__()
-        self.weight = nn.Parameter(torch.randn(in_dim))
-        self.bias = nn.Parameter(torch.randn(in_dim))
-
-    def forward(self, input):
-        return input * self.scale + self.bias
 
 class DAE_2L(nn.Module):
     def __init__(self, input_size=60, latent_size=20, intermidate_size=40, sigma=0.005):
