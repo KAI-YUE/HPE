@@ -219,22 +219,30 @@ def back_project(pos_2d, depth, scale_factor=2):
 
     return pos_3d
 
-
-def freeze_layers(model, indices):
+def freeze_layers(model, indices=None):
     """
     Freeze the specific parameters of the network layers.
+    -----------------------------------------------------------------
+    Args,
+        indices:    the indices of the layer to be froze. 
+                    Default None value will freeze all layers. 
     """
-    i = -1
-    j = 0
-    for child in model.children():
-        if j == len(indices):
-            break
-        index = indices[j]
-        i += 1
-        if i == index:
+    if indices == None:
+        for child in model.children():
             for param in child.parameters():
                 param.requires_grad = False
-            j += 1
+    else:
+        i = -1
+        j = 0
+        for child in model.children():
+            if j == len(indices):
+                break
+            index = indices[j]
+            i += 1
+            if i == index:
+                for param in child.parameters():
+                    param.requires_grad = False
+                j += 1
         
 
 def load_pretrained_weights(model_dir, model):
