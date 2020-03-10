@@ -87,7 +87,7 @@ class PReNet(nn.Module):
             nn.ReLU())
         
         self.fc1 = nn.Linear(256*8**2, 256)
-        self.fc2 = nn.Linear(256, 20)
+        self.fc2 = nn.Linear(256, 3)
 
     def forward(self, x):
         x = self.conv1(x)
