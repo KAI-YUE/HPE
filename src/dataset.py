@@ -84,8 +84,10 @@ class PReDataset(Dataset):
         depth = a_set["cropped_depth"]
         Img = torch.from_numpy(np.dstack((depth, img)).transpose((2,0,1))).to(torch.float32)
         
-        pos = torch.from_numpy(a_set['3d_pos'].astype('float32'))
-        pos = pos[None, :, :]
+        pos = a_set['3d_pos'] + a_set["root_pos"]/1000 
+        pos -= pos[0]
+        pos = torch.from_numpy(pos.astype('float32'))
+        pos = pos[None, 1:, :]
 
         R_inv = torch.from_numpy(a_set["R_inv"].astype("float32"))
         return dict(img=Img, pos=pos, R_inv=R_inv)
