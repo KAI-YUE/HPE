@@ -164,7 +164,7 @@ def PRe_train(model, optimizer, device="cuda", epoch=-1):
                 logger.info("epoch {} iter {} loss {:.3f} ".format(epoch, iteration, loss))
             
             if (config.save_iterations and iteration % config.save_iterations == 0):
-                save_model(os.path.join(config.model_dir, 'PRe_epoch{}_iter{}.pth'.format(epoch, iteration)), model, optimizer, epoch)
+                save_model(os.path.join(config.model_dir, 'PRe_60_epoch{}_iter{}.pth'.format(epoch, iteration)), model, optimizer, epoch)
             
             iteration += 1
 
@@ -173,7 +173,7 @@ def PRe_train(model, optimizer, device="cuda", epoch=-1):
         
         # save the model
         if (config.save_epoch and iteration % config.save_epoch == 0):
-            save_model(os.path.join(config.model_dir, 'PRe_epoch{}.pth'.format(epoch)), model, optimizer, epoch)
+            save_model(os.path.join(config.model_dir, 'PRe_60_epoch{}.pth'.format(epoch)), model, optimizer, epoch)
 
         # validate the model
         if(config.val_epoch and epoch % config.val_epoch == 0):
