@@ -88,23 +88,9 @@ class PReNet(nn.Module):
             nn.BatchNorm2d(256),
             ScaleLayer(512),
             nn.ReLU())
-
-        self.heatmap_conv = nn.Conv2d(in_channels=512, out_channels=64, kernel_size=3, stride=1, padding=1)
-        self.heatmap_upsample = nn.ConvTranspose2d(in_channels=64, out_channels=21, kernel_size=4, stride=2, padding=1)
         
-        self.fc1 = nn.Linear(256*8**2, 200)
-        self.fc2 = nn.Linear(200, 63)
-        # self.fc3 = nn.Linear(20, 60)
-
-    def init_finalFC(self, src_dir, device="cuda"):
-        """
-        Initialize the weights of the last fully-connected layer with PCA. 
-        """
-        with open(src_dir, "rb") as fp:
-            a_set = pickle.load(fp)
-
-        self.fc3.weight.data = torch.from_numpy(a_set["weight"]).to(torch.float32).to(device)
-        self.fc3.bias.data = torch.from_numpy(a_set["bias"]).to(torch.float32).to(device)
+        self.fc1 = nn.Linear(256*8**2, 256)
+        self.fc2 = nn.Linear(256, 20)
 
     def forward(self, x):
         x = self.conv1(x)
@@ -126,14 +112,11 @@ class PReNet(nn.Module):
         x = self.conv4e(x)
         x = self.conv4f(x)
 
-        hms = self.heatmap_conv(x)
-        hms = F.interpolate(hms)
-
         pos = self.fc1(x.view(x.shape[0], -1))
         pos = self.fc2(pos.view(pos.shape[0], -1))
         # pos = self.fc3(x.view(x.shape[0], -1))
 
-        return dict(pos=pos.view(pos.shape[0], 1, 20, 3), hms=hms)
+        return dict(pos=pos)
 
 
 class Skip_ResnetBlock(nn.Module):
@@ -215,6 +198,57 @@ class ScaleLayer(nn.Module):
 
     def forward(self, input):
         return input * self.scale + self.bias
+
+class DAE_2L(nn.Module):
+    def __init__(self, input_size=60, latent_size=20, intermidate_size=40, sigma=0.005):
+        super().__init__()
+        self.encoder = nn.Sequential(
+            nn.Linear(input_size, intermidate_size),
+            nn.ReLU(),
+            nn.Linear(intermidate_size, latent_size),
+            )
+        
+        self.decoder =  nn.Sequential(
+            nn.Linear(latent_size, intermidate_size),
+            nn.ReLU(),
+            nn.Linear(intermidate_size, input_size)
+            )
+        
+        # sigma for Gaussian noise
+        self.sigma = sigma
+        
+    def forward(self, x):
+        # Draw ranom noise from Gaussian distribution
+        x += self.sigma * torch.randn(x.shape).to(x)
+        latent_var = self.encoder(x.view(x.shape[0], -1))
+        y = self.decoder(latent_var)
+        
+        return dict(latent_var=latent_var, y=y) 
+
+
+class DAE_1L(nn.Module):
+    def __init__(self, input_size=60, latent_size=1000, sigma=0.005):
+        super(DAE_1L, self).__init__()
+        self.encoder = nn.Sequential(
+            nn.Linear(input_size, latent_size),
+            nn.ReLU(),
+            )
+        
+        self.decoder =  nn.Sequential(
+            nn.Linear(latent_size, input_size),
+            )
+        
+        # sigma for Gaussian noise
+        self.sigma = sigma
+        
+    def forward(self, x):
+        # Draw ranom noise from Gaussian distribution
+        x += self.sigma * torch.randn(x.shape).to(x)
+        latent_var = self.encoder(x.view(x.shape[0], -1))
+        y = self.decoder(latent_var)
+        
+        return dict(latent_var=latent_var, y=y) 
+
 
 def init_weights(module, init_type='normal', gain=0.02):
     '''

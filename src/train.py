@@ -10,6 +10,7 @@ import torch.optim as optim
 from torch.utils.data import DataLoader
 
 # My Libraries
+from src.networks import DAE_1L, DAE_2L
 from src.loadConfig import loadConfig, log_Level
 from src.dataset import HLoDataset, PReDataset
 from src.loss import HLoCriterion, PReCriterion
@@ -17,6 +18,9 @@ from utils.tools import save_sample, save_model
 
 def HLo_train(model, optimizer, device="cuda", epoch=-1):
     config = loadConfig()
+    
+    # load DAE model
+    
 
     train_data = HLoDataset(config.train_dir)
     train_loader = DataLoader(train_data, batch_size=config.batch_size, drop_last=True, shuffle=True)
