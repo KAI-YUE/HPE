@@ -12,7 +12,7 @@ from src.loadConfig import loadConfig
 from src.networks import HLoNet, PReNet, init_weights
 from src.train import HLo_train, PRe_train
 from src.test import HLo_test, PRe_test, Synth_test, Dexter_test
-from utils.tools import freeze_layers
+from utils.tools import freeze_layers, load_pretrained_weights
 
 def main(mode=None, model_path=None):
     """
@@ -44,6 +44,8 @@ def main(mode=None, model_path=None):
             model = HLoNet()
         elif mode == 1:
             model = PReNet()
+            load_pretrained_weights(config.pretrained_model_dir, model)
+            freeze_layers(model, [0,1,2,3,4,5,6,7,8,9,10,11,12])
 
         model.apply(init_weights)
         model.to(device)
@@ -91,6 +93,7 @@ def main(mode=None, model_path=None):
             model.to(device)
 
             model.load_state_dict(state_dict['model'], strict=False)
+            model.eval()
 
             if mode == 4: 
                 HLo_test(model, config.test_output_dir, device=device, mode=1)
@@ -102,10 +105,12 @@ def main(mode=None, model_path=None):
         Jor_dict = torch.load(model_path[1], map_location=device)
 
         HLo = HLoNet()
+        HLo.eval()
         HLo.load_state_dict(Hal_dict['model'], strict=False)
         HLo.to(device)
 
         PRe = PReNet()
+        PRe.eval()
         PRe.load_state_dict(Jor_dict['model'], strict=False)
         PRe.to(device)
 
