@@ -110,6 +110,7 @@ class PReNet(nn.Module):
         x = self.res4a(x)
         x = self.res4b(x)
         x = self.res4c(x)
+        x = self.res4d(x)
 
         x = self.conv4e(x)
         x = self.conv4f(x)
