@@ -111,9 +111,11 @@ class PReNet(nn.Module):
 
         pos = self.fc1(x.view(x.shape[0], -1))
         pos = self.fc2(pos.view(pos.shape[0], -1))
-        # pos = self.fc3(x.view(x.shape[0], -1))
 
-        return dict(pos=pos)
+        pos = pos.view(pos.shape[0], -1, 3)
+        pos = (R_inv @ pos.transpose(-1,-2)).transpose(-1,-2)
+
+        return dict(pos=pos.view(pos.shape[0], 1, -1, 3))
 
 
 class Skip_ResnetBlock(nn.Module):
