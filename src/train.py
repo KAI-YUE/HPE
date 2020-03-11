@@ -151,6 +151,7 @@ def PRe_train(model, optimizer, device="cuda", epoch=-1):
             
             image = data['img'].to(device)
             pos = data['pos'].to(device)
+            R = data["R_inv"].to(device)
 
             # Get output and calculate loss
             output = model(image)
