@@ -229,6 +229,11 @@ def PRe_test(model, output_dir, device="cuda"):
                 
                 fig.savefig(os.path.join(new_dir, f[:8] + ".jpg"))
                 # np.save(os.path.join(new_dir, f[:8] + "hm.npy"), hms)
+                DH_parameters = {}
+                DH_parameters["theta_alpha"] = result["theta"].cpu().detach().numpy()
+                DH_parameters["scale"] = result["scale"].cpu().detach().numpy()
+                with open(os.path.join(new_dir, f[:8] + "DH.dat"), "wb") as fp:
+                    pickle.dump(DH_parameters, fp)
 
                 plt.close(fig)
                 sampled_in_folder += 1
