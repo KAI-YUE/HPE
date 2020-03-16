@@ -2,6 +2,7 @@
 import os
 import time
 import logging
+import numpy as np
 
 # Pytorch Libraries
 import torch
@@ -14,6 +15,7 @@ from src.loadConfig import loadConfig, log_Level
 from src.dataset import HLoDataset, PReDataset
 from src.loss import HLoCriterion, PReCriterion
 from utils.tools import save_sample, save_model
+from utils.kinematics import forward_kinematics
 
 def HLo_train(model, optimizer, device="cuda", epoch=-1):
     config = loadConfig()
@@ -150,20 +152,29 @@ def PRe_train(model, optimizer, device="cuda", epoch=-1):
             optimizer.zero_grad()
             
             image = data['img'].to(device)
-            pos = data['pos'].to(device)
-            R = data["R_inv"].to(device)
+            pos = data['pos']
+            scale = data["scale"].to(device)
+            theta_alpha = data["theta_alpha"].to(device)
 
             # Get output and calculate loss
             output = model(image)
-            loss = L(output["pos"].to(device), pos)
+            loss = L(output, scale, theta_alpha)
 
             # backward for PRe
             loss.backward()
             optimizer.step()
-            
+
+            pred_pos = np.zeros((pos.shape[0], 21, 3))
+            for i in range(pos.shape[0]):
+                # pred_pos[i] = forward_kinematics(output["theta"][i].cpu().detach().squeeze().numpy(), output["scale"][i].cpu().detach().squeeze().numpy())
+                pred_pos[i] = forward_kinematics(output["theta"][i].cpu().detach().squeeze().numpy(), scale[i].detach().cpu().numpy())
+                # pred_pos[i] = forward_kinematics(theta_alpha[i].detach().cpu().numpy(), output["scale"][i].cpu().detach().squeeze().numpy())
+
+            pos_loss = 1/pred_pos.shape[0] * np.sum(np.sqrt(np.sum((pred_pos - pos.squeeze().numpy())**2, -1)))
+
             # update the log
             if (config.log_interval and iteration % config.log_interval == 0):
-                logger.info("epoch {} iter {} loss {:.3f} ".format(epoch, iteration, loss))
+                logger.info("epoch {} iter {} error {:.3f} DH_loss {:.3f}".format(epoch, iteration, pos_loss, loss))
             iteration += 1
 
             # if (iteration > 5):

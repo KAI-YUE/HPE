@@ -50,9 +50,17 @@ class PReCriterion(object):
         Constructor.
         """
         config = loadConfig()
-        self.weights = config.loss_weights[1:]
+        weights_level = [10., 8., 5., 3., 1.]
+        self.weights = torch.tensor([[weights_level[0], weights_level[0], weights_level[1], weights_level[1],                                       # thumb
+                                      weights_level[2], weights_level[2], weights_level[3], weights_level[3],                                       # thumb
+                                      weights_level[0], weights_level[1], weights_level[1], weights_level[2], weights_level[3],                     # index
+                                      weights_level[1], weights_level[1], weights_level[2], weights_level[3],                                       # middle
+                                      weights_level[0], weights_level[0], weights_level[1], weights_level[1], weights_level[2], weights_level[3],   # ring
+                                      weights_level[0], weights_level[0], weights_level[1], weights_level[1], weights_level[2], weights_level[3]    # little
+                                      ]], device="cuda")   
 
-    def __call__(self, pos, gt_pos):
+
+    def __call__(self, networks_output, scale, theta_alpha):
         """
         Get the Euclid distance^2 (L2 LOSS) between x and ground_truth heatmap 
         & L2 loss between predicted position and ground_truth pos.
@@ -62,9 +70,9 @@ class PReCriterion(object):
             interm_pos:     tensor (N x 63 [21x3]), the intermediate output of 3d joint positions.
             gt_heatmap:     tensor (21 x { N x 1 x H x W }), the groundtruth confidence map.
         """
-        # hm = F.interpolate(hm, size=self.heatmap_size, mode='bilinear')
-
-        # assert(hm.shape == gt_heatmap.shape),  "Heatmap size mismatch!"
-
-        loss = 1/(pos.shape[0]) * torch.sum(torch.sqrt(torch.sum((pos-gt_pos)**2, dim=3)))
+        loss = 0.
+        # loss += 1/scale.shape[0] * torch.sum((networks_output["scale"] - scale)**2)
+        # loss += 1/theta_alpha.shape[0] * torch.sum((networks_output["theta"] - theta_alpha)**2) 
+        loss += 1/theta_alpha.shape[0] * torch.sum(self.weights @ ((networks_output["theta"] - theta_alpha)**2).transpose(0,1))
+       
         return loss
