@@ -217,19 +217,6 @@ def back_project(pos_2d, depth, scale_factor=2):
     pos_3d[1] = depth/f_y * (scale_factor * pos_2d[1] - y_0)
 
     return pos_3d
-
-
-def freeze_layers(model, num_layers):
-    """
-    Freeze the specific parameters of the network layers.
-    """
-    i = 0
-    for child in model.children():
-        i += 1
-        if i > num_layers:
-            break    
-        for param in child.parameters():
-            param.requires_grad = False
     
 def freeze_layers(model, indices=None):
     """

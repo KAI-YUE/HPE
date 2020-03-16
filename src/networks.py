@@ -84,7 +84,7 @@ class PReNet(nn.Module):
             nn.ReLU())
 
         self.fc_theta1 = nn.Linear(256*16**2, 256)
-        self.fc_theta2 = nn.Linear(256, 29)
+        self.fc_theta2 = nn.Linear(256, 7)
         
         # self.fc_scale1 = nn.Linear(256*16**2, 256)
         # self.fc_scale2 = nn.Linear(256, 20)
@@ -206,3 +206,54 @@ class Skip_ResnetBlock(nn.Module):
     def forward(self, x):
         y = x + self.basic_block(x)
         return F.relu(y)
+
+
+class DAE_2L(nn.Module):
+    def __init__(self, input_size=60, latent_size=20, intermidate_size=40, sigma=0.005):
+        super().__init__()
+        self.encoder = nn.Sequential(
+            nn.Linear(input_size, intermidate_size),
+            nn.ReLU(),
+            nn.Linear(intermidate_size, latent_size),
+            )
+        
+        self.decoder =  nn.Sequential(
+            nn.Linear(latent_size, intermidate_size),
+            nn.ReLU(),
+            nn.Linear(intermidate_size, input_size)
+            )
+        
+        # sigma for Gaussian noise
+        self.sigma = sigma
+        
+    def forward(self, x):
+        # Draw ranom noise from Gaussian distribution
+        x += self.sigma * torch.randn(x.shape).to(x)
+        latent_var = self.encoder(x.view(x.shape[0], -1))
+        y = self.decoder(latent_var)
+        
+        return dict(latent_var=latent_var, y=y) 
+
+
+class DAE_1L(nn.Module):
+    def __init__(self, input_size=60, latent_size=1000, sigma=0.005):
+        super(DAE_1L, self).__init__()
+        self.encoder = nn.Sequential(
+            nn.Linear(input_size, latent_size),
+            nn.ReLU(),
+            )
+        
+        self.decoder =  nn.Sequential(
+            nn.Linear(latent_size, input_size),
+            )
+        
+        # sigma for Gaussian noise
+        self.sigma = sigma
+        
+    def forward(self, x):
+        # Draw ranom noise from Gaussian distribution
+        x += self.sigma * torch.randn(x.shape).to(x)
+        latent_var = self.encoder(x.view(x.shape[0], -1))
+        y = self.decoder(latent_var)
+        
+        return dict(latent_var=latent_var, y=y) 
