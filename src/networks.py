@@ -60,7 +60,7 @@ class JLoNet(nn.Module):
             nn.BatchNorm2d(64),
             nn.ReLU())
 
-        self.maxpool = nn.MaxPool2d(kernel_size=3, stride=2, padding=1)
+        self.maxpool = nn.MaxPool2d(kernel_size=3, stride=1, padding=1)
         
         # Encoder part
         self.ConvB1 = Conv_ResnetBlock(64, 64, 128, stride=1)
