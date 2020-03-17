@@ -1,7 +1,4 @@
-﻿# Python Libraries
-import pickle
-
-# Pytorch Libraries
+﻿# Pytorch Libraries
 import torch
 import torch.nn as nn
 import torch.nn.functional as F
@@ -49,18 +46,20 @@ class HLoNet(nn.Module):
 
         y = self.Conv2(x)
 
+        # return 2*torch.sigmoid(y) - 1
         return y
 
-class JLoNet(nn.Module):
+
+class PReNet(nn.Module):
     def __init__(self, in_dim=4):
-        super(HLoNet, self).__init__()
+        super(PReNet, self).__init__()
 
         self.Conv1 = nn.Sequential( 
             nn.Conv2d(in_channels=in_dim, out_channels=64, kernel_size=5, stride=1, padding=2),
             nn.BatchNorm2d(64),
             nn.ReLU())
 
-        self.maxpool = nn.MaxPool2d(kernel_size=3, stride=2, padding=1)
+        self.maxpool = nn.MaxPool2d(kernel_size=3, stride=1, padding=1)
         
         # Encoder part
         self.ConvB1 = Conv_ResnetBlock(64, 64, 128, stride=1)
@@ -72,10 +71,14 @@ class JLoNet(nn.Module):
         self.ConvT1 = ConvTransBlock(1024, 1024, kernel=4, stride=2, padding=1)
         self.ConvT2 = ConvTransBlock(1024+512, 512, kernel=4, stride=2, padding=1)
         self.ConvT3 = ConvTransBlock(512+256, 256, kernel=4, stride=2, padding=1)
-        self.ConvT4 = ConvTransBlock(256+128, 128, kernel=4, stride=2, padding=1)
+        self.ConvT4 = ConvTransBlock(256+128, 128, kernel=3, stride=1, padding=1)
 
-        # Output conv
-        self.Conv2 = Conv_ResnetBlock(128, 64, 1, stride=1) 
+        # Output heatmaps and joint pos
+        self.Conv_hm = Conv_ResnetBlock(128, 64, 21, stride=1) 
+        
+        self.Conv_pos = Conv_ResnetBlock(128, 128, 64, stride=2)
+        self.fc1 = nn.Linear(64**3, 512)
+        self.fc2 = nn.Linear(512, 21*3)
 
     def forward(self, x):
         x = self.Conv1(x)
@@ -91,93 +94,39 @@ class JLoNet(nn.Module):
         x = self.ConvT3(torch.cat((x,x2), dim=1))
         x = self.ConvT4(torch.cat((x,x1), dim=1))
 
-        y = self.Conv2(x)
+        hm = self.Conv_hm(x)
 
-        return y
-
-class PReNet(nn.Module):
-    def __init__(self, in_dim=4):
-        super(PReNet, self).__init__()
-
-        self.conv1 = nn.Sequential( 
-            nn.Conv2d(in_channels=in_dim, out_channels=64, kernel_size=7, stride=2, padding=3),
-            nn.BatchNorm2d(64),
-            nn.ReLU())
-        self.maxpool = nn.MaxPool2d(kernel_size=3, stride=2)
+        pos = self.Conv_pos(x)
+        pos = self.fc1(pos.view(pos.shape[0], -1))
+        pos = self.fc2(F.relu(pos))
+        pos = pos.view(pos.shape[0], 1, 21,3)
         
-        self.res2a = Conv_ResnetBlock(64, 64, 256)
-        self.res2b = Skip_ResnetBlock(256, 64, 256)
-        self.res2c = Skip_ResnetBlock(256, 64, 256)
+        return [hm, pos]
 
-        self.res3a = Conv_ResnetBlock(256, 128, 512, stride=2)
-        self.res3b = Skip_ResnetBlock(512, 128, 512)
-        self.res3c = Skip_ResnetBlock(512, 128, 512)
 
-        self.res4a = Conv_ResnetBlock(512, 256, 1024, stride=2)
-        self.res4b = Skip_ResnetBlock(1024, 256, 1024)
-        self.res4c = Skip_ResnetBlock(1024, 256, 1024)
-        self.res4d = Skip_ResnetBlock(1024, 256, 1024)
-
-        self.conv4e = nn.Sequential(
-            nn.Conv2d(in_channels=1024, out_channels=512, kernel_size=3, stride=1, padding=1),
-            nn.BatchNorm2d(512),
-            nn.ReLU())
-
-        self.conv4f = nn.Sequential(
-            nn.Conv2d(in_channels=512, out_channels=256, kernel_size=3, stride=1, padding=1),
-            nn.BatchNorm2d(256),
-            nn.ReLU())
-        
-        self.fc1 = nn.Linear(256*8**2, 256)
-        self.fc2 = nn.Linear(256, 1000)
+class Regressor(nn.Module):
+    """
+    Regressor for 3d joint positions.
+    """
+    def __init__(self, in_dim, out_dim):
+        self.conv1 = nn.Conv2d(in_channels=in_dim, out_channels=64, kernel_size=3, stride=1, padding=1)
+        self.conv2 = nn.Conv2d(in_channels=64, out_channels=128, kernel_size=3, stride=1)
+        self.fc1 = nn.Linear(128**3, 4096)
+        self.fc2 = nn.Linear(4096, 256)
+        self.fc3 = nn.Linear(256, out_dim)
 
     def forward(self, x):
-        x = self.conv1(x)
-        x = self.maxpool(F.pad(x,(0,1,0,1)))
-
-        x = self.res2a(x)
-        x = self.res2b(x)
-        x = self.res2c(x)
-
-        x = self.res3a(x)
-        x = self.res3b(x)
-        x = self.res3c(x)
-
-        x = self.res4a(x)
-        x = self.res4b(x)
-        x = self.res4c(x)
-        x = self.res4d(x)
-
-        x = self.conv4e(x)
-        x = self.conv4f(x)
-
-        pos = self.fc1(x.view(x.shape[0], -1))
-        pos = self.fc2(pos.view(pos.shape[0], -1))
+        x = F.relu(self.conv1(x))
+        x = F.batch_norm(x)
         
+        x = F.relu(self.conv1(x))
+        x = F.batch_norm(x)
 
-        return dict(pos=pos)
+        x = F.relu(self.fc1(x))
+        x = F.relu(self.fc2(x))
+        x = self.fc3(x)
 
-
-class Skip_ResnetBlock(nn.Module):
-    def __init__(self, in_dim, inter_dim, out_dim, stride=1):
-        super(Skip_ResnetBlock, self).__init__()
-
-        self.basic_block = nn.Sequential(
-            nn.Conv2d(in_channels=in_dim, out_channels=inter_dim, kernel_size=1, stride=stride, padding=0),
-            nn.BatchNorm2d(inter_dim),
-            nn.ReLU(),
-
-            nn.Conv2d(in_channels=inter_dim, out_channels=inter_dim, kernel_size=3, padding=1),
-            nn.BatchNorm2d(inter_dim),
-            nn.ReLU(),
-
-            nn.Conv2d(in_channels=inter_dim, out_channels=out_dim, kernel_size=1, padding=0),
-            nn.BatchNorm2d(out_dim),
-        )
-
-    def forward(self, x):
-        y = x + self.basic_block(x)
-        return F.relu(y)
+        return x
 
 class Conv_ResnetBlock(nn.Module):
     """
@@ -201,13 +150,12 @@ class Conv_ResnetBlock(nn.Module):
 
         self.conv_block = nn.Sequential(
             nn.Conv2d(in_channels=in_dim, out_channels=out_dim, kernel_size=1, stride=stride, padding=0),
-            nn.BatchNorm2d(out_dim),
+            nn.BatchNorm2d(out_dim)
         )
 
     def forward(self, x):
         y = self.basic_block(x) + self.conv_block(x)
         return F.relu(y)
-
 
 class ConvTransBlock(nn.Module):
     def __init__(self, in_channels, out_channels, kernel, stride, padding):
@@ -221,56 +169,6 @@ class ConvTransBlock(nn.Module):
         
     def forward(self, x):
         return self.convT_block(x)
-
-class DAE_2L(nn.Module):
-    def __init__(self, input_size=60, latent_size=20, intermidate_size=40, sigma=0.005):
-        super().__init__()
-        self.encoder = nn.Sequential(
-            nn.Linear(input_size, intermidate_size),
-            nn.ReLU(),
-            nn.Linear(intermidate_size, latent_size),
-            )
-        
-        self.decoder =  nn.Sequential(
-            nn.Linear(latent_size, intermidate_size),
-            nn.ReLU(),
-            nn.Linear(intermidate_size, input_size)
-            )
-        
-        # sigma for Gaussian noise
-        self.sigma = sigma
-        
-    def forward(self, x):
-        # Draw ranom noise from Gaussian distribution
-        x += self.sigma * torch.randn(x.shape).to(x)
-        latent_var = self.encoder(x.view(x.shape[0], -1))
-        y = self.decoder(latent_var)
-        
-        return dict(latent_var=latent_var, y=y) 
-
-
-class DAE_1L(nn.Module):
-    def __init__(self, input_size=60, latent_size=1000, sigma=0.005):
-        super(DAE_1L, self).__init__()
-        self.encoder = nn.Sequential(
-            nn.Linear(input_size, latent_size),
-            nn.ReLU(),
-            )
-        
-        self.decoder =  nn.Sequential(
-            nn.Linear(latent_size, input_size),
-            )
-        
-        # sigma for Gaussian noise
-        self.sigma = sigma
-        
-    def forward(self, x):
-        # Draw ranom noise from Gaussian distribution
-        x += self.sigma * torch.randn(x.shape).to(x)
-        latent_var = self.encoder(x.view(x.shape[0], -1))
-        y = self.decoder(latent_var)
-        
-        return dict(latent_var=latent_var, y=y) 
 
 
 def init_weights(module, init_type='normal', gain=0.02):
