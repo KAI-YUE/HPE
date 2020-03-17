@@ -118,11 +118,7 @@ def PRe_train(model, optimizer, device="cuda", epoch=-1):
     config = loadConfig()
 
     # load DAE model
-<<<<<<< HEAD
     DAE = DAE_1L(60, 1000)
-=======
-    DAE = DAE_2L(60, 3, 40)
->>>>>>> DAE-3
     DAE.load_state_dict(torch.load(config.DAE_weight_file))
     decoder = DAE.decoder
     decoder = decoder.to(device)

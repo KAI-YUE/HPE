@@ -53,7 +53,7 @@ class HLoNet(nn.Module):
 
 class JLoNet(nn.Module):
     def __init__(self, in_dim=4):
-        super(HLoNet, self).__init__()
+        super().__init__()
 
         self.Conv1 = nn.Sequential( 
             nn.Conv2d(in_channels=in_dim, out_channels=64, kernel_size=5, stride=1, padding=2),
