@@ -94,9 +94,11 @@ def main(mode=None, model_path=None):
             model.eval()
 
             if mode == 4: 
-                HLo_test(model, config.test_output_dir, device=device, mode=1)
+                with torch.no_grad():
+                    HLo_test(model, config.test_output_dir, device=device, mode=1)
             elif mode == 5:
-                PRe_test(model, config.test_output_dir, device=device)
+                with torch.no_grad():
+                    PRe_test(model, config.test_output_dir, device=device)
 
     else:
         Hal_dict = torch.load(model_path[0], map_location=device)
@@ -104,6 +106,7 @@ def main(mode=None, model_path=None):
         Jor_dict = torch.load(model_path[2], map_location=device)
 
         HLo = HLoNet()
+        HLo.eval()
         HLo.load_state_dict(Hal_dict['model'], strict=False)
         HLo.eval()
         HLo.to(device)
@@ -114,6 +117,7 @@ def main(mode=None, model_path=None):
         JLo.to(device) 
 
         PRe = PReNet()
+        PRe.eval()
         PRe.load_state_dict(Jor_dict['model'], strict=False)
         PRe.eval()
         PRe.to(device)
