@@ -82,7 +82,8 @@ def ROI_Hand(img, depth, center, invalid_depth=32001):
         y_begin = max(center[0] - radius, 0)
         y_end = min(center[0] + radius, img.shape[1]-1)
     
-        return np.array([x_begin, x_end, y_begin, y_end], dtype="int16"), depth_mean
+        return dict(ROI = np.array([x_begin, x_end, y_begin, y_end], dtype="int16"), 
+                    depth_mean = depth_mean)
      
 
 def ROI_from_pos(pos_arr, size=128):

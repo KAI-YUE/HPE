@@ -182,7 +182,7 @@ def PRe_train(model, optimizer, device="cuda", epoch=-1):
         
         # save the model
         if (config.save_epoch and iteration % config.save_epoch == 0):
-            save_model(os.path.join(config.model_dir, 'PRe_DAE20_error5_epoch{}.pth'.format(epoch)), model, optimizer, epoch)
+            save_model(os.path.join(config.model_dir, 'PRe_DAE1000_epoch{}.pth'.format(epoch)), model, optimizer, epoch)
 
         # validate the model
         if(config.val_epoch and epoch % config.val_epoch == 0):
