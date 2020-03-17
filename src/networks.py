@@ -49,9 +49,51 @@ class HLoNet(nn.Module):
 
         y = self.Conv2(x)
 
-        # return 2*torch.sigmoid(y) - 1
         return y
 
+class JLoNet(nn.Module):
+    def __init__(self, in_dim=4):
+        super(HLoNet, self).__init__()
+
+        self.Conv1 = nn.Sequential( 
+            nn.Conv2d(in_channels=in_dim, out_channels=64, kernel_size=5, stride=1, padding=2),
+            nn.BatchNorm2d(64),
+            nn.ReLU())
+
+        self.maxpool = nn.MaxPool2d(kernel_size=3, stride=2, padding=1)
+        
+        # Encoder part
+        self.ConvB1 = Conv_ResnetBlock(64, 64, 128, stride=1)
+        self.ConvB2 = Conv_ResnetBlock(128, 128, 256, stride=2)
+        self.ConvB3 = Conv_ResnetBlock(256, 256, 512, stride=2)
+        self.ConvB4 = Conv_ResnetBlock(512, 512, 1024, stride=2)
+
+        # Decoder part
+        self.ConvT1 = ConvTransBlock(1024, 1024, kernel=4, stride=2, padding=1)
+        self.ConvT2 = ConvTransBlock(1024+512, 512, kernel=4, stride=2, padding=1)
+        self.ConvT3 = ConvTransBlock(512+256, 256, kernel=4, stride=2, padding=1)
+        self.ConvT4 = ConvTransBlock(256+128, 128, kernel=4, stride=2, padding=1)
+
+        # Output conv
+        self.Conv2 = Conv_ResnetBlock(128, 64, 1, stride=1) 
+
+    def forward(self, x):
+        x = self.Conv1(x)
+        x = self.maxpool(x)
+
+        x1 = self.ConvB1(x)
+        x2 = self.ConvB2(x1)
+        x3 = self.ConvB3(x2)
+        x4 = self.ConvB4(x3)
+
+        x = self.ConvT1(x4)
+        x = self.ConvT2(torch.cat((x,x3), dim=1))
+        x = self.ConvT3(torch.cat((x,x2), dim=1))
+        x = self.ConvT4(torch.cat((x,x1), dim=1))
+
+        y = self.Conv2(x)
+
+        return y
 
 class PReNet(nn.Module):
     def __init__(self, in_dim=4):

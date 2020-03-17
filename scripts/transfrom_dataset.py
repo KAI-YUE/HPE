@@ -12,8 +12,8 @@ import pickle
 import numpy as np
 
 # My Libraries
-from utils.heatmap import Gaussian_heatmap
-from utils.hand_region import ROI_Hand, ROI_from_pos    
+# from utils.heatmap import Gaussian_heatmap
+# from utils.hand_region import ROI_Hand, ROI_from_pos    
 
 f_x = 475.62
 f_y = 475.62
@@ -258,7 +258,7 @@ def get_3dpos(file_name):
     return pos
 
 if __name__ == "__main__":
-    category = "Desk"
+    category = "Rotunda"
     src_dir = r"F:\DataSets\EgoDexter\data\{}".format(category)
     dst_dir = r"F:\Datasets\Dexter_transformed\{}".format(category)
     
