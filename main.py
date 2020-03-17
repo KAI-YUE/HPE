@@ -81,7 +81,7 @@ def main(mode=None, model_path=None):
             epoch = state_dict['epoch']
             del state_dict
             # Freeze certain layers
-            # freeze_layers(model, 11)
+            freeze_layers(model, [0,1,2,3,4,5,6,7,8,9,10,11])
 
             if mode == 2:
                 HLo_train(model, optimizer, device, epoch)

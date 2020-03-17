@@ -50,7 +50,7 @@ class PReCriterion(object):
         Constructor.
         """
         config = loadConfig()
-        weights_level = [10., 8., 5., 3., 1.]
+        weights_level = [1., 1., 1., 1., 1.]
         self.weights = torch.tensor([[weights_level[0], weights_level[0], weights_level[1], weights_level[1],                                       # thumb
                                       weights_level[2], weights_level[2], weights_level[3], weights_level[3],                                       # thumb
                                       weights_level[0], weights_level[1], weights_level[1], weights_level[2], weights_level[3],                     # index

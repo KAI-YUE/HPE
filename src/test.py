@@ -12,6 +12,8 @@ import torch.nn.functional as F
 from torch.utils.data import DataLoader
 
 # My Libraries
+from utils.kinematics import forward_kinematics
+from src.networks import DAE_1L, DAE_2L
 from src.loadConfig import loadConfig
 from utils.heatmap import Heatmap
 from utils.hand_region import ROI_Hand
@@ -43,7 +45,7 @@ def HLo_test(model, output_dir, device="cuda", mode=0):
     """
     alpha = 0.6
     config = loadConfig()
-
+    
     if mode == 0:
 
         already_sampled = 0
@@ -141,11 +143,19 @@ def PRe_test(model, output_dir, device="cuda"):
 
     already_sampled = 0
 
+    # Load DAE model
+    DAE = DAE_2L(29, 7, 29)
+    DAE.load_state_dict(torch.load(config.DAE_weight_file))
+    decoder = DAE.decoder
+    decoder = decoder.to(device)
+
     # Plot rows x cols to show results
     plot_rows = 1
     plot_cols = 4
     num_parts = 21
     root_index = 9
+
+    L = PReCriterion()
 
     for root, dirs, files in os.walk(config.test_dir):
 
@@ -160,22 +170,6 @@ def PRe_test(model, output_dir, device="cuda"):
                     a_set = pickle.load(fp)
                 
                 pos = 1000*a_set["3d_pos"] + a_set["root_pos"]
-                gt_pos = pos.copy()
-                pos -= pos[0]
-                _05_vec = pos[5] 
-                _09_vec = pos[9]
-                z_body_frame = np.cross(_05_vec, _09_vec)
-                
-                # Normalize the y axis and z axis in the body frame
-                y_body_frame = _09_vec / np.linalg.norm(_09_vec)
-                z_body_frame = z_body_frame / np.linalg.norm(z_body_frame)
-                x_body_frame = np.cross(y_body_frame, z_body_frame).reshape(-1,1)
-                
-                y_body_frame = y_body_frame.reshape((-1,1))
-                z_body_frame = z_body_frame.reshape((-1,1))
-                
-                R = np.array([[0,0,1],[1,0,0],[0,1,0]]) @ \
-                    np.hstack((y_body_frame, z_body_frame, x_body_frame)).T
 
                 ROI = a_set["ROI"]
                 img = a_set["cropped_img"]
@@ -184,7 +178,10 @@ def PRe_test(model, output_dir, device="cuda"):
                 Img = Img[None, ...].to(device)
 
                 result = model(Img)
-
+                theta = decoder(result["theta"])
+                theta_numpy = theta.detach().cpu().squeeze().numpy()
+                pred_pos = forward_kinematics(theta_numpy, a_set["DH_scale"])
+                
                 fig, axs = plt.subplots(nrows=plot_rows, ncols=plot_cols, figsize=(20, 15))
                                 
                 # Plot the original image
@@ -193,14 +190,14 @@ def PRe_test(model, output_dir, device="cuda"):
                 axs[0].imshow((255*a_set["img"]).astype("uint8"))
                 img = (255*a_set["cropped_img"]).astype("uint8")
 
-                _3d_pos_arr_ = result["pos"].cpu().detach().numpy().squeeze().copy()
-                gt_3d_arr = a_set["norm_3d_pos"].copy()
-                R_inv = np.linalg.inv(R)
+                _3d_pos_arr_ = pred_pos.copy()
+                gt_3d_arr = forward_kinematics(a_set["DH_theta_alpha"], a_set["DH_scale"])
+                R_inv = a_set["R_inv"]
                 for i in range(_3d_pos_arr_.shape[0]):
-                    _3d_pos_arr_[i] = R_inv @ _3d_pos_arr_[i] + gt_pos[0]
-                    gt_3d_arr[i] = R_inv @ gt_3d_arr[i] + gt_pos[0]
+                    _3d_pos_arr_[i] = R_inv @ _3d_pos_arr_[i] + pos[0]
+                    gt_3d_arr[i] = R_inv @ gt_3d_arr[i] + pos[0]
 
-                _3d_error = np.mean( np.sqrt(np.sum( (_3d_pos_arr_ - gt_pos)**2, axis=1 )) )
+                _3d_error = np.mean( np.sqrt(np.sum( (_3d_pos_arr_ - pos)**2, axis=1 )) )
                 _2d_pos_arr_ = project2plane(_3d_pos_arr_)
                 _2d_pos_arr_[:,0] = (_2d_pos_arr_[:,0] - ROI[2])*a_set["scale_factors"][1]
                 _2d_pos_arr_[:,1] = (_2d_pos_arr_[:,1] - ROI[0])*a_set["scale_factors"][0]
@@ -210,16 +207,16 @@ def PRe_test(model, output_dir, device="cuda"):
                 plot_joint(img, _2d_pos_arr_, axs[1])
 
                 # Plot the original link results
-                ori_error = np.mean( np.sqrt(np.sum( (result["pos"].cpu().detach().numpy().squeeze()-a_set["norm_3d_pos"])**2, axis=1 )) )
 
                 axs[2].set_axis_off()
-                axs[2].set_title("Ground Truth {:.2f}".format(ori_error))  
+                axs[2].set_title("Ground Truth")  
                 _2d_pos = a_set["2d_pos"]
                 _2d_pos[:,0] = (_2d_pos[:,0] - ROI[2]) * a_set["scale_factors"][1]
                 _2d_pos[:,1] = (_2d_pos[:,1] - ROI[0])* a_set["scale_factors"][0]
                 plot_joint(img, _2d_pos, axs[2])
 
-
+                pos = torch.from_numpy(a_set['norm_3d_pos'].astype('float32'))
+                pos = pos[None, 1:, :]
                 axs[3].set_axis_off()
                 axs[3].set_title("Append")
                 _2d_pos_arr_ = project2plane(gt_3d_arr)
