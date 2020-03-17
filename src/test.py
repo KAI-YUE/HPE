@@ -19,7 +19,6 @@ from utils.plot_pos import plot_joint
 from src.loss import HLoCriterion, PReCriterion
 from src.dataset import HLoDataset, PReDataset
 from utils.tools import *
-from src.networks import DAE_1L, DAE_2L
 
 f_x = 475.62
 f_y = 475.62
@@ -142,15 +141,11 @@ def PRe_test(model, output_dir, device="cuda"):
 
     already_sampled = 0
 
-    # load DAE model
-    DAE = DAE_1L(60, 1000)
-    DAE.load_state_dict(torch.load(config.DAE_weight_file))
-    decoder = DAE.decoder
-    decoder = decoder.to(device)
-
-    networks_output = [] 
-
-    L = PReCriterion()
+    # Plot rows x cols to show results
+    plot_rows = 4
+    plot_cols = 7
+    num_parts = 21
+    root_index = 9
 
     for root, dirs, files in os.walk(config.test_dir):
 
@@ -163,20 +158,102 @@ def PRe_test(model, output_dir, device="cuda"):
             for f in files:
                 with open(os.path.join(root, f), "rb") as fp:
                     a_set = pickle.load(fp)
+                
+                # ROI = a_set["ROI"].astype("int")
+                # img = a_set["img"][ROI[0]:ROI[1], ROI[2]:ROI[3]].astype(np.float32)
+                # img = cv2.resize(img, cropped_size, interpolation=cv2.INTER_NEAREST)
+                # depth = a_set["depth"][ROI[0]:ROI[1], ROI[2]:ROI[3]]
+                # depth = cv2.resize(depth, cropped_size, interpolation=cv2.INTER_NEAREST)
+
+                # Tensor_img = pre_process(img).to(device)
+                # Tensor_hm = torch.from_numpy(a_set["heatmaps"]).to(torch.float32).to(device)
+                # Tensor_hm = Tensor_hm[None, ...]
+                # Tensor_pos = torch.from_numpy(a_set["3d_pos"])
 
                 ROI = a_set["ROI"]
                 img = a_set["cropped_img"]
                 depth = a_set["cropped_depth"]
-                depth_with_img = np.dstack((depth, img)).transpose((2,0,1))
-                depth_with_img = depth_with_img.astype("float32")
-                Img = torch.from_numpy(depth_with_img)
+                Img = torch.from_numpy(np.dstack((depth, img)).transpose((2,0,1))).to(torch.float32)
                 Img = Img[None, ...].to(device)
 
-                result = model(Img)
-                result_numpy = result["pos"].detach().cpu().squeeze().numpy()
-                
-                networks_output.append(result_numpy)
+                root_pos = a_set["root_pos"]
+                pos = a_set["3d_pos"]
+                gt_pos = 1000*pos + root_pos
 
+                Tensor_hms, Tensor_pos = model(Img)
+
+                hms = Tensor_hms.cpu().detach().numpy().squeeze()
+
+                # Plot the result 
+                img = (255*img).astype("uint8")
+                fig, axs = plt.subplots(nrows=plot_rows, ncols=plot_cols, figsize=(20, 15))
+                counter = 0
+                break_flag = False
+                for r in range(1,plot_rows):
+                    for c in range(plot_cols):
+                        hm = cv2.resize(hms[counter], tuple(config.cropped_size))
+                        heatmap = Heatmap(hm)
+
+                        composite = (alpha*img + (1-alpha)*heatmap[...,::-1]).astype(np.uint8)
+                        axs[r, c].set_axis_off()
+                        axs[r, c].set_title(Part_Namelist[counter])
+                        axs[r, c].imshow(composite)
+                        
+                        counter += 1
+                        if counter == num_parts:
+                            break_flag = True
+                            break
+
+                    if (break_flag == True):
+                        break
+
+                # # plot the original hand image
+                # axs[-1, 3].set_axis_off()
+                # axs[-1, 3].imshow(img)
+                                
+                # Plot the original image
+                axs[0,1].set_axis_off()
+                axs[0,1].set_title("Original")  
+                axs[0,1].imshow((255*a_set["img"]).astype("uint8"))
+                
+                # Plot the link results with naive method
+                _2d_pos_arr_ = naive_pos_from_heatmap(hms)
+                axs[0,4].set_axis_off()
+                plot_joint(img, _2d_pos_arr_, axs[0,4])
+
+                _2d_pos_arr_[:,0] = _2d_pos_arr_[:,0]/a_set["scale_factors"][1] + ROI[2]
+                _2d_pos_arr_[:,1] = _2d_pos_arr_[:,1]/a_set["scale_factors"][1] + ROI[0]
+                _2d_error = np.mean(np.sqrt(np.sum((_2d_pos_arr_-a_set["2d_pos"])**2, axis=1)))
+                axs[0,4].set_title("2d Pred {:.02f}".format(_2d_error))
+
+                # Calculate the 3d pos distance and plot the projection of 3d pos
+                pred_root_pos = _2d_pos_arr_[root_index].astype("int")
+                pred_3d_root_pos = back_project(pred_root_pos, a_set["depth"][pred_root_pos[1], pred_root_pos[0]])
+
+                _3d_pos_arr_ = 1000*Tensor_pos.cpu().detach().numpy().squeeze() + a_set["root_pos"]
+                _3d_error = np.mean( np.sqrt(np.sum( (_3d_pos_arr_-gt_pos)**2, axis=1 )) )
+                _3d_pos_arr_ = project2plane(_3d_pos_arr_)
+                _3d_pos_arr_[:,0] = (_3d_pos_arr_[:,0] - ROI[2])*a_set["scale_factors"][1]
+                _3d_pos_arr_[:,1] = (_3d_pos_arr_[:,1] - ROI[0])*a_set["scale_factors"][0]
+
+                axs[0,5].set_axis_off()
+                axs[0,5].set_title("3d Pred {:.2f}".format(_3d_error))
+                plot_joint(img, _3d_pos_arr_, axs[0,5])
+
+                # Plot the original link results
+                ori_error = 1000* np.mean( np.sqrt(np.sum( (Tensor_pos.cpu().detach().numpy().squeeze()-a_set["3d_pos"])**2, axis=1 )) )
+
+                axs[0,6].set_axis_off()
+                axs[0,6].set_title("Ground Truth {:.2f}".format(ori_error))  
+                _2d_pos = a_set["2d_pos"]
+                _2d_pos[:,0] = (_2d_pos[:,0] - ROI[2]) * a_set["scale_factors"][1]
+                _2d_pos[:,1] = (_2d_pos[:,1] - ROI[0])* a_set["scale_factors"][0]
+                plot_joint(img, _2d_pos, axs[0, 6])
+
+                fig.savefig(os.path.join(new_dir, f[:8] + ".jpg"))
+                # np.save(os.path.join(new_dir, f[:8] + "hm.npy"), hms)
+
+                plt.close(fig)
                 sampled_in_folder += 1
                 if (sampled_in_folder > config.samples_per_folder):
                     break
@@ -184,42 +261,139 @@ def PRe_test(model, output_dir, device="cuda"):
             already_sampled += sampled_in_folder
             if (sampled_in_folder > config.test_samples):
                 break
-    
-    networks_output = np.asarray(networks_output)
-    np.save(os.path.join(config.test_output_dir, "DAE_1000_space.npy"), networks_output)
 
 
-def Dexter_test(model_set, input_dir, output_dir, device="cuda"):
+def Synth_test(HLo, PRe, input_dir, output_dir, device="cuda"):
+    """
+    Test the joint model on SynthHand dataset. First the HLo model localize the hand image, then 
+    the PRe model regresses the joint position.
+    --------------------------------------------------------------------------------
+    Args,
+        HLo,       the hand localization model.
+        PRe,       the position regression model.
+        input_dir, the input directory of the test set (already transformed.) The grountruth is known.  
+    """
+
+    alpha = 0.7
+    config = loadConfig()
+
+    already_sampled = 0
+
+    for root, dirs, files in os.walk(input_dir):
+        
+        new_dir = os.path.join(root.replace(input_dir, output_dir))
+        if not os.path.exists(new_dir):
+            os.mkdir(new_dir)
+
+        if (files != []):
+            sampled_in_folder = 0
+            for f in files:
+                if ".dat" in f:
+                    with open(os.path.join(root, f), "rb") as fp:
+                        a_set = pickle.load(fp)
+
+                    # Localize the wrist
+                    img = a_set["img"]
+                    depth = a_set["depth"]
+                    Tensor_img = pre_process(img).to(device)
+
+                    result = HLo(Tensor_img)
+                    center = center_from_heatmap(result.squeeze())
+
+                    # Back projection with th predicted center
+                    d = depth[center[1], center[0]]
+                    x_3d = (center[0] - x_0) * d / f_x
+                    y_3d = (center[1] - y_0) * d / f_y
+
+                    hm = result.squeeze().detach().cpu().numpy()
+                    hm = cv2.resize(hm, tuple(config.input_size))
+                    img = (255*img).astype("uint8")
+                    heatmap = Heatmap(hm)
+                    composite = alpha*img + (1-alpha)*heatmap[...,::-1]
+                    
+                    # Plot the result 
+                    fig, axs = plt.subplots(nrows=plot_rows, ncols=plot_cols, figsize=(15, 10))
+                    axs[0,0].set_axis_off()
+                    axs[0,0].set_title("Original image")
+                    axs[0,0].imshow(img)
+                    
+                    axs[1,0].set_axis_off()
+                    axs[1,0].set_title("Predicted {}".format(center))
+                    axs[1,0].imshow(composite.astype("uint8"))
+                    
+                    # Load the pos array
+                    f_ = f.replace(".dat", "_joint_pos.txt")
+                    pos_arr = np.loadtxt(os.path.join(root, f_))
+
+                    # Plot the cropped hand
+                    ROI = ROI_Hand(img, depth, center)
+                    cropped_hand = img[ROI[0]:ROI[1], ROI[2]:ROI[3]]
+                    axs[0,1].set_axis_off()
+                    axs[0,1].set_title("Cropped hm")
+                    axs[0,1].imshow(cropped_hand)
+                    
+                    # modify the pos array.
+                    pos_arr[21:, 0] -= ROI[2]
+                    pos_arr[21:, 1] -= ROI[0]
+
+                    # Regress the joint position
+                    Tensor_img = pre_process(cropped_hand).to(device)
+
+                    result, interm = PRe(Tensor_img)
+                    pred_pos = pos_from_heatmap(result[0].squeeze())
+
+                    pos_3d = result[1].cpu().detach().squeeze().numpy()
+                    pos_3d += np.array(x_0, y_0, d)
+
+                    # plot the original 2-D links
+                    axs[1, 1].set_axis_off()
+                    axs[1, 1].set_title("Links GT")
+                    plot_joint(cropped_hand, pos_arr[21:, :2], axs[0, 2])
+                    
+                    # Plot the 2-D links results
+                    axs[0, 2].set_axis_off()
+                    axs[0, 2].set_title("2D Links ")  
+                    plot_joint(cropped_hand, pred_pos, axs[0, 2])
+                    
+                    # Plot the 3-D links results
+                    axs[1, 2].set_axis_off()
+                    axs[1, 2].set_title("3D Links")
+                    plot_joint(cropped_hand, pred_pos, axs[1, 2])
+
+                    error = np.sqrt(np.sum((pos_arr[21:, :2]-pred_pos)**2))
+                    
+                    fig.savefig(os.path.join(new_dir, f[:8] + "_{:.2f}.jpg".format(error)))
+                    plt.close(fig)
+
+                    sampled_in_folder += 1
+
+                    if (sampled_in_folder > config.samples_per_folder):
+                        break
+            
+                already_sampled += sampled_in_folder
+                if (sampled_in_folder > config.test_samples):
+                    break
+
+
+def Dexter_test(HLo, PRe, input_dir, output_dir, device="cuda"):
     """
     Test the joint model on EgoDexter dataset. First the HLo model localize the hand image, then 
     the PRe model regresses the joint position.
     --------------------------------------------------------------------------------
     Args,
-        model_set,   the set of model including HLo(hand localization), JLo(joint localization), PRe (Position Regression)
-        input_dir,   the input directory of the test set (already transformed.) The grountruth is unknown.  
+        HLo,       the hand localization model.
+        PRe,       the joint regression model.
+        input_dir, the input directory of the test set (already transformed.) The grountruth is unknown.  
     """
     alpha = 0.7
     config = loadConfig()
     
-    cropped_size = tuple(config.cropped_size)
     already_sampled = 0
-
-    # load DAE model
-    DAE = DAE_1L(60, 1000)
-    DAE.load_state_dict(torch.load(config.DAE_weight_file))
-    decoder = DAE.decoder
-    decoder = decoder.to(device)
-
-    # Load networks model
-    HLo = model_set["HLo"].eval()
-    JLo = model_set["JLo"].eval()
-    PRe = model_set["PRe"].eval()
     
     # Plot rows x cols to show results
     plot_rows = 4
     plot_cols = 7
     num_parts = 21
-    accumulated_3d_error = 0
 
     for root, dirs, files in os.walk(input_dir):
         
@@ -239,21 +413,17 @@ def Dexter_test(model_set, input_dir, output_dir, device="cuda"):
                 
                 img = a_set["img"]
                 depth = a_set["depth"]
-                depth_with_img = np.dstack((depth, img)).transpose((2,0,1))
-                depth_with_img = depth_with_img.astype("float32")
-                Img = torch.from_numpy(depth_with_img)
-                Img = Img[None, ...].to(device)
+                Tensor_img = pre_process(img).to(device)
+                result = HLo(Tensor_img)
                 
-                root_heatmap = HLo(Img)
-                center = center_from_heatmap(root_heatmap.squeeze())
+                center = center_from_heatmap(result.squeeze())
 
-                ROI_with_mean_depth = ROI_Hand(img, depth, center, invalid_depth=0)
-                scale_factors[0] = cropped_size[1]/(ROI[1]-ROI[0])
-                scale_factors[1] = cropped_size[0]/(ROI[3]-ROI[2])
+                # Back projection with th predicted center
+                ##
 
-                root_heatmap_numpy = root_heatmap.squeeze().detach().cpu().numpy()
+                hm = result.squeeze().detach().cpu().numpy()
                 img = (255*img).astype("uint8")
-                heatmap = Heatmap(root_heatmap_numpy)
+                heatmap = Heatmap(hm)
                 composite = (alpha*img + (1-alpha)*heatmap[...,::-1]).astype("uint8")
                 
                 # Plot the result 
@@ -268,14 +438,11 @@ def Dexter_test(model_set, input_dir, output_dir, device="cuda"):
                 
                 # Load the pos array
                 _2d_pos = a_set["2d_pos"]
-                _3d_pos = a_set["3d_pos"]
 
                 # Plot the cropped hand
                 ROI = ROI_Hand(img/255, depth, center)
                 cropped_hand = img[ROI[0]:ROI[1], ROI[2]:ROI[3]]
-                cropped_hand = cv2.resize(cropped_hand, cropped_size)
-                cropped_depth = depth[ROI[0]:ROI[1], ROI[2]:ROI[3]]
-                cropped_depth = cv2.resize(cropped_depth, cropped_size, interpolation=cv2.INTER_NEAREST)
+                cropped_hand = cv2.resize(cropped_hand, tuple(config.cropped_size))
 
                 axs[0,2].set_axis_off()
                 axs[0,2].set_title("Cropped")
@@ -286,30 +453,14 @@ def Dexter_test(model_set, input_dir, output_dir, device="cuda"):
                 _2d_pos[:, 1] -= ROI[0]
 
                 # Regress the joint position
-                depth_with_img = np.dstack((cropped_depth, cropped_hand)).transpose((2,0,1))
-                depth_with_img = depth_with_img.astype("float32")
-                Img = torch.from_numpy(depth_with_img)
-                heatmaps = JLo(Img)
-                heatmaps_numpy = heatmaps.squeeze().cpu().detach().numpy()
-                pred_pos = naive_pos_from_heatmap(heatmaps)
+                Tensor_img = pre_process(cropped_hand).to(device)
 
-                pos0 = back_project(pred_pos[0], cropped_depth)
-                pos5 = back_project(pred_pos[5], cropped_depth)
-                pos9 = back_project(pred_pos[9], cropped_depth)
-                pos5 -= pos0
-                pos9 -= pos0
-                z_body_frame = np.cross(pos0, pos9)
+                result = PRe(Tensor_img)
+                hms = result[0].squeeze().cpu().detach().numpy()
+                pred_pos = naive_pos_from_heatmap(hms)
 
-                # Normalize the y axis and z axis in the body frame
-                y_body_frame = pos9 / np.linalg.norm(pos9)
-                z_body_frame = z_body_frame / np.linalg.norm(z_body_frame)
-                x_body_frame = np.cross(y_body_frame, z_body_frame).reshape(-1,1)
-                
-                y_body_frame = y_body_frame.reshape((-1,1))
-                z_body_frame = z_body_frame.reshape((-1,1))
-                
-                R = np.array([[0,0,1],[1,0,0],[0,1,0]]) @ \
-                    np.hstack((y_body_frame, z_body_frame, x_body_frame)).T
+                # pos_3d = result[1].cpu().detach().squeeze().numpy()
+                # pos_3d += np.array(x_0, y_0, d)
 
                 # plot the original annotations
                 axs[0, 3].set_axis_off()
@@ -326,17 +477,9 @@ def Dexter_test(model_set, input_dir, output_dir, device="cuda"):
                 plot_joint(cropped_hand, pred_pos, axs[0, 4])
                 
                 # Plot the 3-D links results
-                pre_output = PRe(Img)
-                pred_3d_pos = decoder(pre_output)
-                pred_3d_pos = pred_3d_pos.detach().cpu().view(-1, 3)
-                pred_3d_pos_numpy = pred_3d_pos.numpy()
-
-                error = np.mean(np.sqrt(np.sum((pred_3d_pos-_3d_pos)**2, axis=-1)))
-                accumulated_3d_error += error
-                proj_pred_3d_pos = project2plane(pred_3d_pos_numpy)
-                axs[0, 5].set_axis_off()
-                axs[0, 5].set_title("3D Links {}".format(error))
-                plot_joint(cropped_hand, proj_pred_3d_pos, axs[0, 5])
+                # axs[0, 5].set_axis_off()
+                # axs[0, 5].set_title("3D Links")
+                # plot_joint(cropped_hand, pred_pos, axs[1, 2])
 
                 # Plot the heatmaps of different parts
                 counter = 0
@@ -365,9 +508,6 @@ def Dexter_test(model_set, input_dir, output_dir, device="cuda"):
             already_sampled += sampled_in_folder
             if (sampled_in_folder > config.test_samples):
                 break
-    
-    averaged_error = accumulated_3d_error/sampled_in_folder
-    np.save(os.path.join(config.test_output_dir, "error.npy"), np.asarray([averaged_error]))
 
 
         
