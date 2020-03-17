@@ -118,7 +118,11 @@ def PRe_train(model, optimizer, device="cuda", epoch=-1):
     config = loadConfig()
 
     # load DAE model
+<<<<<<< HEAD
     DAE = DAE_1L(60, 1000)
+=======
+    DAE = DAE_2L(60, 3, 40)
+>>>>>>> DAE-3
     DAE.load_state_dict(torch.load(config.DAE_weight_file))
     decoder = DAE.decoder
     decoder = decoder.to(device)
@@ -162,7 +166,7 @@ def PRe_train(model, optimizer, device="cuda", epoch=-1):
             R_inv = data["R_inv"].to(device)
 
             # Get output and calculate loss
-            output = model(image)
+            output = model(image, R_inv)
             pred_pos = decoder(output["pos"]).view(output["pos"].shape[0], -1, 3)
             pred_pos = (R_inv @ pred_pos.transpose(-1,-2)).transpose(-1,-2)
             pred_pos = pred_pos.view_as(pos)
