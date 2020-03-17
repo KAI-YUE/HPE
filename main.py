@@ -101,13 +101,13 @@ def main(mode=None, model_path=None):
                     PRe_test(model, config.test_output_dir, device=device)
 
     else:
-        Hal_dict = torch.load(model_path[0], map_location=device)
+        Hlo_dict = torch.load(model_path[0], map_location=device)
         Jlo_dict = torch.load(model_path[1], map_location=device)
         Jor_dict = torch.load(model_path[2], map_location=device)
 
         HLo = HLoNet()
         HLo.eval()
-        HLo.load_state_dict(Hal_dict['model'], strict=False)
+        HLo.load_state_dict(Hlo_dict['model'], strict=False)
         HLo.eval()
         HLo.to(device)
 
@@ -123,7 +123,7 @@ def main(mode=None, model_path=None):
         PRe.to(device)
 
         model_set = {"HLo":HLo, "JLo":JLo, "PRe":PRe}
-        Dexter_test(model_set, config.test_dir, config.test_output_dir)
+        Dexter_test(model_set, config.dexter_dir, config.test_output_dir)
 
 if __name__ == '__main__':
 
