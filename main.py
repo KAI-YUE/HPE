@@ -11,7 +11,7 @@ import torch.optim as optim
 from src.loadConfig import loadConfig
 from src.networks import HLoNet, JLoNet, PReNet, init_weights
 from src.train import HLo_train, PRe_train
-from src.test import HLo_test, PRe_test, Synth_test, Dexter_test
+from src.test import HLo_test, PRe_test, Dexter_test
 from utils.tools import freeze_layers, load_pretrained_weights
 
 def main(mode=None, model_path=None):
