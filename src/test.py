@@ -241,8 +241,9 @@ def Dexter_test(model_set, input_dir, output_dir, device="cuda"):
                     a_set = pickle.load(fp)
                 
                 img = a_set["img"]
-                depth = a_set["depth_norm"]
-                depth_with_img = np.dstack((depth, img)).transpose((2,0,1))
+                depth = a_set["depth"]
+                depth_norm = a_set["depth_norm"]
+                depth_with_img = np.dstack((depth_norm, img/255)).transpose((2,0,1))
                 depth_with_img = depth_with_img.astype("float32")
                 Img = torch.from_numpy(depth_with_img)
                 Img = Img[None, ...].to(device)
@@ -275,11 +276,10 @@ def Dexter_test(model_set, input_dir, output_dir, device="cuda"):
                 # Plot the cropped hand
                 cropped_hand = img[ROI[0]:ROI[1], ROI[2]:ROI[3]]
                 cropped_hand = cv2.resize(cropped_hand, cropped_size)
-                depth = a_set["depth"]
                 cropped_depth = depth[ROI[0]:ROI[1], ROI[2]:ROI[3]]
                 cropped_depth = cv2.resize(cropped_depth, cropped_size, interpolation=cv2.INTER_NEAREST)
-                cropped_depth_norm = np.where(cropped_depth==invalid_depth, depth_max, cropped_depth)
-                cropped_depth_norm = np.where(cropped_depth_norm>depth_max, depth_max, cropped_depth_norm)
+                cropped_depth_norm = np.where(cropped_depth==invalid_depth, depth_max+mean_depth, cropped_depth)
+                cropped_depth_norm = np.where(cropped_depth_norm>depth_max, depth_max+mean_depth, cropped_depth_norm)
                 cropped_depth_norm = (cropped_depth_norm - mean_depth)/depth_max
 
                 axs[0,2].set_axis_off()
@@ -287,7 +287,7 @@ def Dexter_test(model_set, input_dir, output_dir, device="cuda"):
                 axs[0,2].imshow(cropped_hand)
 
                 # Regress the joint position
-                depth_with_img = np.dstack((cropped_depth_norm, cropped_hand)).transpose((2,0,1))
+                depth_with_img = np.dstack((cropped_depth_norm, cropped_hand/255)).transpose((2,0,1))
                 depth_with_img = depth_with_img.astype("float32")
                 Img = torch.from_numpy(depth_with_img)
                 Img = Img[None,...].to(device)
@@ -298,9 +298,9 @@ def Dexter_test(model_set, input_dir, output_dir, device="cuda"):
                 pred_pos[:,0] = pred_pos[:,0]/scale_factors[1] + ROI[2]
                 pred_pos[:,1] = pred_pos[:,1]/scale_factors[0] + ROI[0]
 
-                pos0 = back_project(pred_pos[0], cropped_depth_norm)
-                pos5 = back_project(pred_pos[5], cropped_depth_norm)
-                pos9 = back_project(pred_pos[9], cropped_depth_norm)
+                pos0 = back_project(pred_pos[0], depth)
+                pos5 = back_project(pred_pos[5], depth)
+                pos9 = back_project(pred_pos[9], depth)
                 pos5 -= pos0
                 pos9 -= pos0
                 z_body_frame = np.cross(pos0, pos9)
