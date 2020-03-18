@@ -64,18 +64,23 @@ def ROI_Hand(img, depth, center, invalid_depth=32001):
         bound:      [x_begin, x_end, y_begin, y_end]
     """
     size_factor = 27025 
-    depth_mean = 0
+    mean_depth = 0
     num_valid = 0
 
-    for i in range(center[1]-2, center[1]+3):
-        for j in range(center[0]-2, center[0]+3):
+    search_region = 2
+    i_min = max(0, center[1]-search_region)
+    i_max = min(depth.shape[0], center[1]+search_region+1)
+    j_min = max(0, center[0]-search_region)
+    j_max = min(depth.shape[1], center[0]+search_region+1)
+    for i in range(i_min, i_max):
+        for j in range(j_min, j_max):
             if depth[i,j] != invalid_depth:
-                depth_mean += depth[i,j]
+                mean_depth += depth[i,j]
                 num_valid += 1
     
     if num_valid > 0:
-        depth_mean /= num_valid
-        radius = size_factor / depth_mean 
+        mean_depth /= num_valid
+        radius = size_factor / mean_depth 
 
         x_begin = max(center[1] - radius, 0)
         x_end = min(center[1] + radius, img.shape[0]-1)
@@ -83,7 +88,7 @@ def ROI_Hand(img, depth, center, invalid_depth=32001):
         y_end = min(center[0] + radius, img.shape[1]-1)
     
         return dict(ROI = np.array([x_begin, x_end, y_begin, y_end], dtype="int16"), 
-                    depth_mean = depth_mean)
+                    mean_depth = mean_depth)
      
 
 def ROI_from_pos(pos_arr, size=128):

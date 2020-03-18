@@ -53,7 +53,7 @@ class HLoNet(nn.Module):
 
 class JLoNet(nn.Module):
     def __init__(self, in_dim=4):
-        super(PReNet, self).__init__()
+        super(JLoNet, self).__init__()
 
         self.Conv1 = nn.Sequential( 
             nn.Conv2d(in_channels=in_dim, out_channels=64, kernel_size=5, stride=1, padding=2),
@@ -74,9 +74,8 @@ class JLoNet(nn.Module):
         self.ConvT3 = ConvTransBlock(512+256, 256, kernel=4, stride=2, padding=1)
         self.ConvT4 = ConvTransBlock(256+128, 128, kernel=3, stride=1, padding=1)
 
-        # Output heatmaps and joint pos
+        # Output heatmaps 
         self.Conv_hm = Conv_ResnetBlock(128, 64, 21, stride=1) 
-        self.Conv_pos = Conv_ResnetBlock(128, 128, 64, stride=2)
 
     def forward(self, x):
         x = self.Conv1(x)
@@ -92,7 +91,7 @@ class JLoNet(nn.Module):
         x = self.ConvT3(torch.cat((x,x2), dim=1))
         x = self.ConvT4(torch.cat((x,x1), dim=1))
 
-        y = self.Conv2(x)
+        y = self.Conv_hm(x)
 
         return y
 

@@ -174,9 +174,13 @@ def trans_EgoData(src_dir, dst_dir, category="Desk"):
         dst_dir:    the destination directory of the transformed dataset.
         category:   the specific category. (Desk, Fruits, Kitchen, Rotunda)
     """
+    invalid_depth = 0
+    depth_max = 1000
+    scale_factor = 2
+    
     color_file = "image_{:05d}_color_on_depth.png"
     depth_file = "image_{:05d}_depth.png"
-
+    
     if not os.path.exists(dst_dir):
         os.mkdir(dst_dir)
 
@@ -202,9 +206,15 @@ def trans_EgoData(src_dir, dst_dir, category="Desk"):
             color_on_depth = cv2.resize(color_on_depth, (320, 240))
             depth = cv2.imread(os.path.join(src_dir, "depth", depth_file.format(i)), -1)
             depth = cv2.resize(depth, (320, 240))
+            
+            depth_min = np.min(depth)
+            depth_norm = np.where(depth==invalid_depth, depth_max, depth)
+            depth_norm = (depth - depth_min) / (depth_max - depth_min)
+            
             a_set["img"] = (color_on_depth/255).astype("float16")
             a_set["depth"] = depth
-            a_set["2d_pos"] = pos_2d
+            a_set["depth_norm"] = depth_norm
+            a_set["2d_pos"] = pos_2d/scale_factor
             a_set["3d_pos"] = pos_3d
             
             with open(os.path.join(dst_dir, "{:05d}.dat".format(i)), "wb") as fp:
@@ -258,8 +268,9 @@ def get_3dpos(file_name):
     return pos
 
 if __name__ == "__main__":
-    category = "Rotunda"
-    src_dir = r"F:\DataSets\EgoDexter\data\{}".format(category)
-    dst_dir = r"F:\Datasets\Dexter_transformed\{}".format(category)
-    
-    trans_EgoData(src_dir, dst_dir, category)
+    categories = ["Desk", "Fruits", "Kitchen", "Rotunda"]
+    for category in categories:
+        src_dir = r"F:\DataSets\EgoDexter\data\{}".format(category)
+        dst_dir = r"F:\Datasets\Dexter_transformed\{}".format(category)
+        
+        trans_EgoData(src_dir, dst_dir, category)
