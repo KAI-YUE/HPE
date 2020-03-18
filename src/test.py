@@ -19,6 +19,7 @@ from utils.plot_pos import plot_joint
 from src.loss import HLoCriterion, PReCriterion
 from src.dataset import HLoDataset, PReDataset
 from utils.tools import *
+from src.networks import DAE_1L, DAE_2L
 
 f_x = 475.62
 f_y = 475.62
@@ -369,25 +370,34 @@ def Synth_test(HLo, PRe, input_dir, output_dir, device="cuda"):
                     break
 
 
-def Dexter_test(HLo, PRe, input_dir, output_dir, device="cuda"):
+def Dexter_test(model_set, input_dir, output_dir, device="cuda"):
     """
     Test the joint model on EgoDexter dataset. First the HLo model localize the hand image, then 
     the PRe model regresses the joint position.
     --------------------------------------------------------------------------------
     Args,
-        HLo,       the hand localization model.
-        PRe,       the joint regression model.
-        input_dir, the input directory of the test set (already transformed.) The grountruth is unknown.  
+        model_set,   the set of model including HLo(hand localization), JLo(joint localization), PRe (Position Regression)
+        input_dir,   the input directory of the test set (already transformed.) The grountruth is unknown.  
     """
     alpha = 0.7
+    invalid_depth = 0
+    depth_max = 1000
+    error_threshold = 50
+    scale_factors = np.array([0.,0.])
     config = loadConfig()
     
+    cropped_size = tuple(config.cropped_size)
     already_sampled = 0
+
+    # Load networks model
+    HLo = model_set["HLo"].eval()
+    PRe = model_set["PRe"].eval()
     
     # Plot rows x cols to show results
     plot_rows = 4
     plot_cols = 7
     num_parts = 21
+    accumulated_3d_error = 0
 
     for root, dirs, files in os.walk(input_dir):
         
@@ -400,7 +410,7 @@ def Dexter_test(HLo, PRe, input_dir, output_dir, device="cuda"):
             indices = np.arange(len(files))
             # random.shuffle(indices)
 
-            for i in range(config.test_samples):
+            for i in range(indices.shape[0]):
                 f = files[indices[i]]
                 with open(os.path.join(root, f), "rb") as fp:
                     a_set = pickle.load(fp)
@@ -413,7 +423,8 @@ def Dexter_test(HLo, PRe, input_dir, output_dir, device="cuda"):
                 Img = torch.from_numpy(depth_with_img)
                 Img = Img[None, ...].to(device)
                 
-                center = center_from_heatmap(result.squeeze())
+                root_heatmap = HLo(Img)
+                center = center_from_heatmap(root_heatmap.squeeze())
 
                 ROI_with_mean_depth = ROI_Hand(img, depth, center, invalid_depth)
                 ROI = ROI_with_mean_depth["ROI"]
@@ -455,32 +466,14 @@ def Dexter_test(HLo, PRe, input_dir, output_dir, device="cuda"):
                 depth_with_img = depth_with_img.astype("float32")
                 Img = torch.from_numpy(depth_with_img)
                 Img = Img[None,...].to(device)
-                heatmaps = JLo(Img)
+                pre_output = PRe(Img)
+                heatmaps = pre_output["heatmaps"]
                 heatmaps_numpy = heatmaps.squeeze().cpu().detach().numpy()
                 pred_pos = naive_pos_from_heatmap(heatmaps_numpy)
 
                 pred_pos_plot = pred_pos.copy()
                 pred_pos[:,0] = pred_pos[:,0]/scale_factors[1] + ROI[2]
                 pred_pos[:,1] = pred_pos[:,1]/scale_factors[0] + ROI[0]
-
-                pos0 = back_project(pred_pos[0], depth)
-                pos5 = back_project(pred_pos[5], depth)
-                pos9 = back_project(pred_pos[9], depth)
-                pos5 -= pos0
-                pos9 -= pos0
-                z_body_frame = np.cross(pos5, pos9)
-
-                # Normalize the y axis and z axis in the body frame
-                y_body_frame = pos9 / np.linalg.norm(pos9)
-                z_body_frame = z_body_frame / np.linalg.norm(z_body_frame)
-                x_body_frame = np.cross(y_body_frame, z_body_frame).reshape(-1,1)
-                
-                y_body_frame = y_body_frame.reshape((-1,1))
-                z_body_frame = z_body_frame.reshape((-1,1))
-                
-                R = np.array([[0,0,1],[1,0,0],[0,1,0]]) @ \
-                    np.hstack((y_body_frame, z_body_frame, x_body_frame)).T
-                R_inv = np.linalg.inv(R)
 
                 # plot the original annotations
                 _2d_pos = a_set["2d_pos"]
@@ -505,15 +498,16 @@ def Dexter_test(HLo, PRe, input_dir, output_dir, device="cuda"):
                 plot_joint(cropped_hand, pred_pos_plot, axs[0, 4])
                 
                 # Plot the 3-D links results
-                pre_output = PRe(Img)
-                pred_3d_pos = decoder(pre_output["pos"])
+                pred_3d_pos = pre_output["pos"]
                 pred_3d_pos = pred_3d_pos.detach().cpu().view(-1, 3)
                 pred_3d_pos_numpy = 1000*pred_3d_pos.numpy()
-                pred_3d_pos_numpy = np.vstack((np.zeros(3), pred_3d_pos_numpy))
-                pred_3d_pos_numpy = (R_inv @ pred_3d_pos_numpy.T).T
-                pred_3d_pos_numpy += pos0
+                root_pos = back_project(pred_pos[9], depth)
+                pred_3d_pos_numpy += root_pos
 
                 error = np.mean(np.sqrt(np.sum((pred_3d_pos_numpy[fingertip_indices]-_3d_pos)**2, axis=-1)))
+                if error > error_threshold:
+                    continue
+
                 accumulated_3d_error += error
                 proj_pred_3d_pos = project2plane(pred_3d_pos_numpy)
                 proj_pred_3d_pos_plot = proj_pred_3d_pos
@@ -553,7 +547,8 @@ def Dexter_test(HLo, PRe, input_dir, output_dir, device="cuda"):
                 break
     
     averaged_error = accumulated_3d_error/sampled_in_folder
-    np.savetxt(os.path.join(config.test_output_dir, "error_DAE1000.txt"), np.asarray([averaged_error]))
+    np.savetxt(os.path.join(config.test_output_dir, "error_comp.txt"), np.asarray([averaged_error]))
+
 
 
         

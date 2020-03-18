@@ -102,8 +102,7 @@ def main(mode=None, model_path=None):
 
     else:
         Hlo_dict = torch.load(model_path[0], map_location=device)
-        Jlo_dict = torch.load(model_path[1], map_location=device)
-        Jor_dict = torch.load(model_path[2], map_location=device)
+        Jor_dict = torch.load(model_path[1], map_location=device)
 
         HLo = HLoNet()
         HLo.eval()
@@ -111,18 +110,13 @@ def main(mode=None, model_path=None):
         HLo.eval()
         HLo.to(device)
 
-        JLo = JLoNet()
-        JLo.load_state_dict(Jlo_dict["model"], strict=False)
-        JLo.eval()
-        JLo.to(device) 
-
         PRe = PReNet()
         PRe.eval()
         PRe.load_state_dict(Jor_dict['model'], strict=False)
         PRe.eval()
         PRe.to(device)
 
-        model_set = {"HLo":HLo, "JLo":JLo, "PRe":PRe}
+        model_set = {"HLo":HLo, "PRe":PRe}
         with torch.no_grad():
             Dexter_test(model_set, config.dexter_dir, config.test_output_dir)
 

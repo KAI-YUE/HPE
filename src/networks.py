@@ -139,39 +139,15 @@ class PReNet(nn.Module):
         x = self.ConvT3(torch.cat((x,x2), dim=1))
         x = self.ConvT4(torch.cat((x,x1), dim=1))
 
-        hm = self.Conv_hm(x)
+        heatmaps = self.Conv_hm(x)
 
         pos = self.Conv_pos(x)
         pos = self.fc1(pos.view(pos.shape[0], -1))
         pos = self.fc2(F.relu(pos))
         pos = pos.view(pos.shape[0], 1, 21,3)
         
-        return [hm, pos]
+        return dict(heatmaps=heatmaps, pos=pos)
 
-
-class Regressor(nn.Module):
-    """
-    Regressor for 3d joint positions.
-    """
-    def __init__(self, in_dim, out_dim):
-        self.conv1 = nn.Conv2d(in_channels=in_dim, out_channels=64, kernel_size=3, stride=1, padding=1)
-        self.conv2 = nn.Conv2d(in_channels=64, out_channels=128, kernel_size=3, stride=1)
-        self.fc1 = nn.Linear(128**3, 4096)
-        self.fc2 = nn.Linear(4096, 256)
-        self.fc3 = nn.Linear(256, out_dim)
-
-    def forward(self, x):
-        x = F.relu(self.conv1(x))
-        x = F.batch_norm(x)
-        
-        x = F.relu(self.conv1(x))
-        x = F.batch_norm(x)
-
-        x = F.relu(self.fc1(x))
-        x = F.relu(self.fc2(x))
-        x = self.fc3(x)
-
-        return x
 
 class Conv_ResnetBlock(nn.Module):
     """
