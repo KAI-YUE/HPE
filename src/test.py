@@ -158,21 +158,10 @@ def PRe_test(model, output_dir, device="cuda"):
             for f in files:
                 with open(os.path.join(root, f), "rb") as fp:
                     a_set = pickle.load(fp)
-                
-                # ROI = a_set["ROI"].astype("int")
-                # img = a_set["img"][ROI[0]:ROI[1], ROI[2]:ROI[3]].astype(np.float32)
-                # img = cv2.resize(img, cropped_size, interpolation=cv2.INTER_NEAREST)
-                # depth = a_set["depth"][ROI[0]:ROI[1], ROI[2]:ROI[3]]
-                # depth = cv2.resize(depth, cropped_size, interpolation=cv2.INTER_NEAREST)
-
-                # Tensor_img = pre_process(img).to(device)
-                # Tensor_hm = torch.from_numpy(a_set["heatmaps"]).to(torch.float32).to(device)
-                # Tensor_hm = Tensor_hm[None, ...]
-                # Tensor_pos = torch.from_numpy(a_set["3d_pos"])
 
                 ROI = a_set["ROI"]
                 img = a_set["cropped_img"]
-                depth = a_set["cropped_depth_norm"]
+                depth = a_set["cropped_depth"]
                 depth_with_img = np.dstack((depth, img)).transpose((2,0,1))
                 depth_with_img = depth_with_img.astype("float32")
                 Img = torch.from_numpy(depth_with_img)
@@ -230,7 +219,7 @@ def PRe_test(model, output_dir, device="cuda"):
 
                 # Calculate the 3d pos distance and plot the projection of 3d pos
                 pred_root_pos = _2d_pos_arr_[root_index].astype("int")
-                pred_3d_root_pos = back_project(pred_root_pos, a_set["depth"][pred_root_pos[1], pred_root_pos[0]])
+                pred_3d_root_pos = back_project(pred_root_pos, a_set["depth"])
 
                 _3d_pos_arr_ = 1000*Tensor_pos.cpu().detach().numpy().squeeze() + a_set["root_pos"]
                 _3d_error = np.mean( np.sqrt(np.sum( (_3d_pos_arr_-gt_pos)**2, axis=1 )) )
