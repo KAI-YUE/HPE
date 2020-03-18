@@ -406,8 +406,9 @@ def Dexter_test(HLo, PRe, input_dir, output_dir, device="cuda"):
                     a_set = pickle.load(fp)
                 
                 img = a_set["img"]
-                depth = a_set["depth_norm"]
-                depth_with_img = np.dstack((depth, img)).transpose((2,0,1))
+                depth = a_set["depth"]
+                depth_norm = a_set["depth_norm"]
+                depth_with_img = np.dstack((depth_norm, img)).transpose((2,0,1))
                 depth_with_img = depth_with_img.astype("float32")
                 Img = torch.from_numpy(depth_with_img)
                 Img = Img[None, ...].to(device)
@@ -421,29 +422,28 @@ def Dexter_test(HLo, PRe, input_dir, output_dir, device="cuda"):
                 scale_factors[0] = cropped_size[1]/(ROI[1]-ROI[0])
                 scale_factors[1] = cropped_size[0]/(ROI[3]-ROI[2])
 
-                hm = result.squeeze().detach().cpu().numpy()
-                img = (255*img).astype("uint8")
-                heatmap = Heatmap(hm)
-                composite = (alpha*img + (1-alpha)*heatmap[...,::-1]).astype("uint8")
+                root_heatmap_numpy = root_heatmap.squeeze().detach().cpu().numpy()
+                img_display = (255*img).astype("uint8")
+                heatmap = Heatmap(root_heatmap_numpy)
+                composite = (alpha*img_display + (1-alpha)*heatmap[...,::-1]).astype("uint8")
                 
                 # Plot the result 
                 fig, axs = plt.subplots(nrows=plot_rows, ncols=plot_cols, figsize=(30, 15))
                 axs[0,0].set_axis_off()
                 axs[0,0].set_title("Original image")
-                axs[0,0].imshow(img)
+                axs[0,0].imshow(img_display)
                 
                 axs[0,1].set_axis_off()
                 axs[0,1].set_title("Predicted {}".format(center))
                 axs[0,1].imshow(composite)
 
                 # Plot the cropped hand
-                cropped_hand = img[ROI[0]:ROI[1], ROI[2]:ROI[3]]
+                cropped_hand = img_display[ROI[0]:ROI[1], ROI[2]:ROI[3]]
                 cropped_hand = cv2.resize(cropped_hand, cropped_size)
-                depth = a_set["depth"]
                 cropped_depth = depth[ROI[0]:ROI[1], ROI[2]:ROI[3]]
                 cropped_depth = cv2.resize(cropped_depth, cropped_size, interpolation=cv2.INTER_NEAREST)
-                cropped_depth_norm = np.where(cropped_depth==invalid_depth, depth_max, cropped_depth)
-                cropped_depth_norm = np.where(cropped_depth_norm>depth_max, depth_max, cropped_depth_norm)
+                cropped_depth_norm = np.where(cropped_depth==invalid_depth, depth_max+mean_depth, cropped_depth)
+                cropped_depth_norm = np.where(cropped_depth_norm>depth_max, depth_max+mean_depth, cropped_depth_norm)
                 cropped_depth_norm = (cropped_depth_norm - mean_depth)/depth_max
 
                 axs[0,2].set_axis_off()
@@ -451,7 +451,7 @@ def Dexter_test(HLo, PRe, input_dir, output_dir, device="cuda"):
                 axs[0,2].imshow(cropped_hand)
 
                 # Regress the joint position
-                depth_with_img = np.dstack((cropped_depth_norm, cropped_hand)).transpose((2,0,1))
+                depth_with_img = np.dstack((cropped_depth_norm, cropped_hand/255)).transpose((2,0,1))
                 depth_with_img = depth_with_img.astype("float32")
                 Img = torch.from_numpy(depth_with_img)
                 Img = Img[None,...].to(device)
@@ -459,15 +459,16 @@ def Dexter_test(HLo, PRe, input_dir, output_dir, device="cuda"):
                 heatmaps_numpy = heatmaps.squeeze().cpu().detach().numpy()
                 pred_pos = naive_pos_from_heatmap(heatmaps_numpy)
 
+                pred_pos_plot = pred_pos.copy()
                 pred_pos[:,0] = pred_pos[:,0]/scale_factors[1] + ROI[2]
                 pred_pos[:,1] = pred_pos[:,1]/scale_factors[0] + ROI[0]
 
-                pos0 = back_project(pred_pos[0], cropped_depth_norm)
-                pos5 = back_project(pred_pos[5], cropped_depth_norm)
-                pos9 = back_project(pred_pos[9], cropped_depth_norm)
+                pos0 = back_project(pred_pos[0], depth)
+                pos5 = back_project(pred_pos[5], depth)
+                pos9 = back_project(pred_pos[9], depth)
                 pos5 -= pos0
                 pos9 -= pos0
-                z_body_frame = np.cross(pos0, pos9)
+                z_body_frame = np.cross(pos5, pos9)
 
                 # Normalize the y axis and z axis in the body frame
                 y_body_frame = pos9 / np.linalg.norm(pos9)
@@ -485,28 +486,29 @@ def Dexter_test(HLo, PRe, input_dir, output_dir, device="cuda"):
                 _2d_pos = a_set["2d_pos"]
                 _3d_pos = a_set["3d_pos"]
 
-                # modify the pos array
-                _2d_pos[:, 0] = (_2d_pos[:, 0] - ROI[2])*scale_factors[1]
-                _2d_pos[:, 1] = (_2d_pos[:, 1] - ROI[0])*scale_factors[0]
+                # transform the pos array to the cropped image space
+                _2d_pos_plot = _2d_pos.copy()
+                _2d_pos_plot[:, 0] = (_2d_pos_plot[:, 0] - ROI[2])*scale_factors[1]
+                _2d_pos_plot[:, 1] = (_2d_pos_plot[:, 1] - ROI[0])*scale_factors[0]
 
                 axs[0, 3].set_axis_off()
                 axs[0, 3].set_title("Keypoints GT")
                 axs[0, 3].imshow(cropped_hand)
-                for j in range(_2d_pos.shape[0]):
-                    axs[0, 3].scatter(_2d_pos[j,0], _2d_pos[j,1])
+                for j in range(_2d_pos_plot.shape[0]):
+                    axs[0, 3].scatter(_2d_pos_plot[j,0], _2d_pos_plot[j,1])
                 
                 # Plot the 2-D links results
                 fingertip_indices = [4, 8, 12, 16, 20]
                 error = np.mean(np.sqrt(np.sum((_2d_pos-pred_pos[fingertip_indices])**2, axis=1)))
                 axs[0, 4].set_axis_off()
                 axs[0, 4].set_title("2D Links {:.3f}".format(error))  
-                plot_joint(cropped_hand, pred_pos, axs[0, 4])
+                plot_joint(cropped_hand, pred_pos_plot, axs[0, 4])
                 
                 # Plot the 3-D links results
                 pre_output = PRe(Img)
                 pred_3d_pos = decoder(pre_output["pos"])
                 pred_3d_pos = pred_3d_pos.detach().cpu().view(-1, 3)
-                pred_3d_pos_numpy = pred_3d_pos.numpy()
+                pred_3d_pos_numpy = 1000*pred_3d_pos.numpy()
                 pred_3d_pos_numpy = np.vstack((np.zeros(3), pred_3d_pos_numpy))
                 pred_3d_pos_numpy = (R_inv @ pred_3d_pos_numpy.T).T
                 pred_3d_pos_numpy += pos0
@@ -514,6 +516,10 @@ def Dexter_test(HLo, PRe, input_dir, output_dir, device="cuda"):
                 error = np.mean(np.sqrt(np.sum((pred_3d_pos_numpy[fingertip_indices]-_3d_pos)**2, axis=-1)))
                 accumulated_3d_error += error
                 proj_pred_3d_pos = project2plane(pred_3d_pos_numpy)
+                proj_pred_3d_pos_plot = proj_pred_3d_pos
+                proj_pred_3d_pos_plot[:,0] = (proj_pred_3d_pos_plot[:,0] - ROI[2]) * scale_factors[1]
+                proj_pred_3d_pos_plot[:,1] = (proj_pred_3d_pos_plot[:,1] - ROI[0]) * scale_factors[0]
+
                 axs[0, 5].set_axis_off()
                 axs[0, 5].set_title("3D Links {:.3f}".format(error))
                 plot_joint(cropped_hand, proj_pred_3d_pos, axs[0, 5])
@@ -534,7 +540,7 @@ def Dexter_test(HLo, PRe, input_dir, output_dir, device="cuda"):
                         if counter == num_parts:
                             break
                 
-                fig.savefig(os.path.join(new_dir, f[:8] + ".jpg"))
+                fig.savefig(os.path.join(new_dir, f[:5] + ".jpg"))
                 plt.close(fig)
 
                 sampled_in_folder += 1
@@ -545,6 +551,9 @@ def Dexter_test(HLo, PRe, input_dir, output_dir, device="cuda"):
             already_sampled += sampled_in_folder
             if (sampled_in_folder > config.test_samples):
                 break
+    
+    averaged_error = accumulated_3d_error/sampled_in_folder
+    np.savetxt(os.path.join(config.test_output_dir, "error_DAE1000.txt"), np.asarray([averaged_error]))
 
 
         
