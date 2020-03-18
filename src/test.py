@@ -382,7 +382,7 @@ def Dexter_test(model_set, input_dir, output_dir, device="cuda"):
     alpha = 0.7
     invalid_depth = 0
     depth_max = 1000
-    error_threshold = 50
+    error_threshold = 60
     scale_factors = np.array([0.,0.])
     config = loadConfig()
     
@@ -398,6 +398,7 @@ def Dexter_test(model_set, input_dir, output_dir, device="cuda"):
     plot_cols = 7
     num_parts = 21
     accumulated_3d_error = 0
+    error_list = []
 
     for root, dirs, files in os.walk(input_dir):
         
@@ -505,6 +506,7 @@ def Dexter_test(model_set, input_dir, output_dir, device="cuda"):
                 pred_3d_pos_numpy += root_pos
 
                 error = np.mean(np.sqrt(np.sum((pred_3d_pos_numpy[fingertip_indices]-_3d_pos)**2, axis=-1)))
+                error_list.append(error)
                 if error > error_threshold:
                     continue
 
@@ -548,7 +550,7 @@ def Dexter_test(model_set, input_dir, output_dir, device="cuda"):
     
     averaged_error = accumulated_3d_error/sampled_in_folder
     np.savetxt(os.path.join(config.test_output_dir, "error_comp.txt"), np.asarray([averaged_error]))
-
+    np.savetxt(os.path.join(config.test_output_dir, "error_arr.txt"), np.asarray(error_list))
 
 
         
