@@ -123,7 +123,8 @@ def main(mode=None, model_path=None):
         PRe.to(device)
 
         model_set = {"HLo":HLo, "JLo":JLo, "PRe":PRe}
-        Dexter_test(model_set, config.dexter_dir, config.test_output_dir)
+        with torch.no_grad():
+            Dexter_test(model_set, config.dexter_dir, config.test_output_dir)
 
 if __name__ == '__main__':
 
