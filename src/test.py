@@ -172,8 +172,10 @@ def PRe_test(model, output_dir, device="cuda"):
 
                 ROI = a_set["ROI"]
                 img = a_set["cropped_img"]
-                depth = a_set["cropped_depth"]
-                Img = torch.from_numpy(np.dstack((depth, img)).transpose((2,0,1))).to(torch.float32)
+                depth = a_set["cropped_depth_norm"]
+                depth_with_img = np.dstack((depth, img)).transpose((2,0,1))
+                depth_with_img = depth_with_img.astype("float32")
+                Img = torch.from_numpy(depth_with_img)
                 Img = Img[None, ...].to(device)
 
                 root_pos = a_set["root_pos"]
@@ -275,6 +277,9 @@ def Synth_test(HLo, PRe, input_dir, output_dir, device="cuda"):
     """
 
     alpha = 0.7
+    invalid_depth = 0
+    depth_max = 1000
+    scale_factors = np.array([0.,0.])
     config = loadConfig()
 
     already_sampled = 0
@@ -412,14 +417,20 @@ def Dexter_test(HLo, PRe, input_dir, output_dir, device="cuda"):
                     a_set = pickle.load(fp)
                 
                 img = a_set["img"]
-                depth = a_set["depth"]
-                Tensor_img = pre_process(img).to(device)
-                result = HLo(Tensor_img)
+                depth = a_set["depth_norm"]
+                depth_with_img = np.dstack((depth, img)).transpose((2,0,1))
+                depth_with_img = depth_with_img.astype("float32")
+                Img = torch.from_numpy(depth_with_img)
+                Img = Img[None, ...].to(device)
                 
                 center = center_from_heatmap(result.squeeze())
 
-                # Back projection with th predicted center
-                ##
+                ROI_with_mean_depth = ROI_Hand(img, depth, center, invalid_depth)
+                ROI = ROI_with_mean_depth["ROI"]
+                mean_depth = ROI_with_mean_depth["mean_depth"]
+
+                scale_factors[0] = cropped_size[1]/(ROI[1]-ROI[0])
+                scale_factors[1] = cropped_size[0]/(ROI[3]-ROI[2])
 
                 hm = result.squeeze().detach().cpu().numpy()
                 img = (255*img).astype("uint8")
@@ -435,34 +446,60 @@ def Dexter_test(HLo, PRe, input_dir, output_dir, device="cuda"):
                 axs[0,1].set_axis_off()
                 axs[0,1].set_title("Predicted {}".format(center))
                 axs[0,1].imshow(composite)
-                
-                # Load the pos array
-                _2d_pos = a_set["2d_pos"]
 
                 # Plot the cropped hand
-                ROI = ROI_Hand(img/255, depth, center)
                 cropped_hand = img[ROI[0]:ROI[1], ROI[2]:ROI[3]]
-                cropped_hand = cv2.resize(cropped_hand, tuple(config.cropped_size))
+                cropped_hand = cv2.resize(cropped_hand, cropped_size)
+                depth = a_set["depth"]
+                cropped_depth = depth[ROI[0]:ROI[1], ROI[2]:ROI[3]]
+                cropped_depth = cv2.resize(cropped_depth, cropped_size, interpolation=cv2.INTER_NEAREST)
+                cropped_depth_norm = np.where(cropped_depth==invalid_depth, depth_max, cropped_depth)
+                cropped_depth_norm = np.where(cropped_depth_norm>depth_max, depth_max, cropped_depth_norm)
+                cropped_depth_norm = (cropped_depth_norm - mean_depth)/depth_max
 
                 axs[0,2].set_axis_off()
                 axs[0,2].set_title("Cropped")
                 axs[0,2].imshow(cropped_hand)
-                
-                # modify the pos array.
-                _2d_pos[:, 0] -= ROI[2]
-                _2d_pos[:, 1] -= ROI[0]
 
                 # Regress the joint position
-                Tensor_img = pre_process(cropped_hand).to(device)
+                depth_with_img = np.dstack((cropped_depth_norm, cropped_hand)).transpose((2,0,1))
+                depth_with_img = depth_with_img.astype("float32")
+                Img = torch.from_numpy(depth_with_img)
+                Img = Img[None,...].to(device)
+                heatmaps = JLo(Img)
+                heatmaps_numpy = heatmaps.squeeze().cpu().detach().numpy()
+                pred_pos = naive_pos_from_heatmap(heatmaps_numpy)
 
-                result = PRe(Tensor_img)
-                hms = result[0].squeeze().cpu().detach().numpy()
-                pred_pos = naive_pos_from_heatmap(hms)
+                pred_pos[:,0] = pred_pos[:,0]/scale_factors[1] + ROI[2]
+                pred_pos[:,1] = pred_pos[:,1]/scale_factors[0] + ROI[0]
 
-                # pos_3d = result[1].cpu().detach().squeeze().numpy()
-                # pos_3d += np.array(x_0, y_0, d)
+                pos0 = back_project(pred_pos[0], cropped_depth_norm)
+                pos5 = back_project(pred_pos[5], cropped_depth_norm)
+                pos9 = back_project(pred_pos[9], cropped_depth_norm)
+                pos5 -= pos0
+                pos9 -= pos0
+                z_body_frame = np.cross(pos0, pos9)
+
+                # Normalize the y axis and z axis in the body frame
+                y_body_frame = pos9 / np.linalg.norm(pos9)
+                z_body_frame = z_body_frame / np.linalg.norm(z_body_frame)
+                x_body_frame = np.cross(y_body_frame, z_body_frame).reshape(-1,1)
+                
+                y_body_frame = y_body_frame.reshape((-1,1))
+                z_body_frame = z_body_frame.reshape((-1,1))
+                
+                R = np.array([[0,0,1],[1,0,0],[0,1,0]]) @ \
+                    np.hstack((y_body_frame, z_body_frame, x_body_frame)).T
+                R_inv = np.linalg.inv(R)
 
                 # plot the original annotations
+                _2d_pos = a_set["2d_pos"]
+                _3d_pos = a_set["3d_pos"]
+
+                # modify the pos array
+                _2d_pos[:, 0] = (_2d_pos[:, 0] - ROI[2])*scale_factors[1]
+                _2d_pos[:, 1] = (_2d_pos[:, 1] - ROI[0])*scale_factors[0]
+
                 axs[0, 3].set_axis_off()
                 axs[0, 3].set_title("Keypoints GT")
                 axs[0, 3].imshow(cropped_hand)
@@ -473,19 +510,30 @@ def Dexter_test(HLo, PRe, input_dir, output_dir, device="cuda"):
                 fingertip_indices = [4, 8, 12, 16, 20]
                 error = np.mean(np.sqrt(np.sum((_2d_pos-pred_pos[fingertip_indices])**2, axis=1)))
                 axs[0, 4].set_axis_off()
-                axs[0, 4].set_title("2D Links {}".format(error))  
+                axs[0, 4].set_title("2D Links {:.3f}".format(error))  
                 plot_joint(cropped_hand, pred_pos, axs[0, 4])
                 
                 # Plot the 3-D links results
-                # axs[0, 5].set_axis_off()
-                # axs[0, 5].set_title("3D Links")
-                # plot_joint(cropped_hand, pred_pos, axs[1, 2])
+                pre_output = PRe(Img)
+                pred_3d_pos = decoder(pre_output["pos"])
+                pred_3d_pos = pred_3d_pos.detach().cpu().view(-1, 3)
+                pred_3d_pos_numpy = pred_3d_pos.numpy()
+                pred_3d_pos_numpy = np.vstack((np.zeros(3), pred_3d_pos_numpy))
+                pred_3d_pos_numpy = (R_inv @ pred_3d_pos_numpy.T).T
+                pred_3d_pos_numpy += pos0
+
+                error = np.mean(np.sqrt(np.sum((pred_3d_pos_numpy[fingertip_indices]-_3d_pos)**2, axis=-1)))
+                accumulated_3d_error += error
+                proj_pred_3d_pos = project2plane(pred_3d_pos_numpy)
+                axs[0, 5].set_axis_off()
+                axs[0, 5].set_title("3D Links {:.3f}".format(error))
+                plot_joint(cropped_hand, proj_pred_3d_pos, axs[0, 5])
 
                 # Plot the heatmaps of different parts
                 counter = 0
                 for r in range(1, plot_rows):
                     for c in range(plot_cols):
-                        hm = cv2.resize(hms[counter], tuple(config.cropped_size))
+                        hm = cv2.resize(heatmaps_numpy[counter], tuple(config.cropped_size))
                         heatmap = Heatmap(hm)
 
                         composite = (alpha*cropped_hand + (1-alpha)*heatmap[...,::-1]).astype(np.uint8)

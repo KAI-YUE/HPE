@@ -189,24 +189,26 @@ def back_project(pos_2d, depth, scale_factor=2, invalid_depth=0):
     x_0 = 311.125
     y_0 = 245.965
 
-    search_region = 5
-    pos_3d = np.array([0, 0, 0])
-    pos_3d[0] = depth/f_x * (scale_factor * pos_2d[0] - x_0)
-    pos_3d[1] = depth/f_y * (scale_factor * pos_2d[1] - y_0)
-
+    search_region = 2
     sum_depth = 0
     valid_counter = 0
-    i_min = max(0, pos_2d[1])
-    i_max = min(depth.shape[0], pos_2d[1])
-    j_min = max(0, pos_2d[0])
-    j_max = min(depth.shape[1], pos_2d[0])
+
+    i_min = max(0, pos_2d[1]-search_region)
+    i_max = min(depth.shape[0], pos_2d[1]+search_region+1)
+    j_min = max(0, pos_2d[0]-search_region)
+    j_max = min(depth.shape[1], pos_2d[0]+search_region+1)
     for i in range(i_min, i_max):
         for j in range(j_min, j_max):
             if depth[i,j] != invalid_depth:
                 sum_depth += depth[i,j]
                 valid_counter += 1
 
+    pos_3d = np.array([0., 0., 0.])
     pos_3d[2] = sum_depth/valid_counter
+    pos_3d[0] = pos_3d[2]/f_x * (scale_factor * pos_2d[0] - x_0)
+    pos_3d[1] = pos_3d[2]/f_y * (scale_factor * pos_2d[1] - y_0)
+
+
     return pos_3d
 
 
