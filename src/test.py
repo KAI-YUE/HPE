@@ -224,6 +224,7 @@ def Dexter_test(model_set, input_dir, output_dir, device="cuda"):
     plot_cols = 5
     accumulated_3d_error = 0
     error_th = 60
+    error_list = []
     fingertip_indices = [4,8,12,16,20]
 
     for root, dirs, files in os.walk(input_dir):
@@ -332,6 +333,7 @@ def Dexter_test(model_set, input_dir, output_dir, device="cuda"):
                 if error > error_th:
                     continue
                 accumulated_3d_error += error
+                error_list.append(error)
 
                 proj_pred_3d_pos = project2plane(pred_3d_pos_numpy)
                 proj_pred_3d_pos_plot = proj_pred_3d_pos
@@ -351,11 +353,11 @@ def Dexter_test(model_set, input_dir, output_dir, device="cuda"):
                     break
         
             already_sampled += sampled_in_folder
-            if (sampled_in_folder > config.test_samples):
+            if (already_sampled > config.test_samples):
                 break
     
-    averaged_error = accumulated_3d_error/sampled_in_folder
+    averaged_error = accumulated_3d_error/already_sampled 
     np.savetxt(os.path.join(config.test_output_dir, "error_DAE1000.txt"), np.asarray([averaged_error]))
-
+    np.savetxt(os.path.join(config.test_output_dir, "error_arrtxt"), np.asarray(error_list))
 
         

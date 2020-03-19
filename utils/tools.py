@@ -173,6 +173,7 @@ def project2plane(pos_3d, scale_factor=0.5):
 
     return pos_arr
 
+
 def back_project(pos_2d, depth, scale_factor=2, invalid_depth=0):
     """
     Back project the 2d coordinates to the 3d frame. x = d/f_x * (u-x0), y = d/f_y * (v-y0). 
@@ -210,7 +211,6 @@ def back_project(pos_2d, depth, scale_factor=2, invalid_depth=0):
         pos_3d[2] = 340
     pos_3d[0] = pos_3d[2]/f_x * (scale_factor * pos_2d[0] - x_0)
     pos_3d[1] = pos_3d[2]/f_y * (scale_factor * pos_2d[1] - y_0)
-
 
     return pos_3d
 

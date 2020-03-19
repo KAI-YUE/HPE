@@ -1,7 +1,4 @@
-﻿# Python Libraries
-import pickle
-
-# Pytorch Libraries
+﻿# Pytorch Libraries
 import torch
 import torch.nn as nn
 import torch.nn.functional as F
@@ -49,6 +46,7 @@ class HLoNet(nn.Module):
 
         y = self.Conv2(x)
 
+        # return 2*torch.sigmoid(y) - 1
         return y
 
 class JLoNet(nn.Module):
@@ -93,7 +91,9 @@ class JLoNet(nn.Module):
 
         y = self.Conv_hm(x)
 
+        # return 2*torch.sigmoid(y) - 1
         return y
+
 
 class PReNet(nn.Module):
     def __init__(self, in_dim=4):
@@ -153,7 +153,7 @@ class PReNet(nn.Module):
 
         pos = self.fc1(x.view(x.shape[0], -1))
         pos = self.fc2(pos.view(pos.shape[0], -1))
-
+        
         return dict(pos=pos)
 
 
@@ -240,6 +240,7 @@ class Skip_ResnetBlock(nn.Module):
         y = x + self.basic_block(x)
         return F.relu(y)
 
+
 class Conv_ResnetBlock(nn.Module):
     """
     Resnet Block.
@@ -262,13 +263,12 @@ class Conv_ResnetBlock(nn.Module):
 
         self.conv_block = nn.Sequential(
             nn.Conv2d(in_channels=in_dim, out_channels=out_dim, kernel_size=1, stride=stride, padding=0),
-            nn.BatchNorm2d(out_dim),
+            nn.BatchNorm2d(out_dim)
         )
 
     def forward(self, x):
         y = self.basic_block(x) + self.conv_block(x)
         return F.relu(y)
-
 
 class ConvTransBlock(nn.Module):
     def __init__(self, in_channels, out_channels, kernel, stride, padding):
@@ -282,6 +282,7 @@ class ConvTransBlock(nn.Module):
         
     def forward(self, x):
         return self.convT_block(x)
+
 
 class DAE_2L(nn.Module):
     def __init__(self, input_size=60, latent_size=20, intermidate_size=40, sigma=0.005):
@@ -309,7 +310,6 @@ class DAE_2L(nn.Module):
         
         return dict(latent_var=latent_var, y=y) 
 
-
 class DAE_1L(nn.Module):
     def __init__(self, input_size=60, latent_size=1000, sigma=0.005):
         super(DAE_1L, self).__init__()
@@ -332,7 +332,6 @@ class DAE_1L(nn.Module):
         y = self.decoder(latent_var)
         
         return dict(latent_var=latent_var, y=y) 
-
 
 def init_weights(module, init_type='normal', gain=0.02):
     '''

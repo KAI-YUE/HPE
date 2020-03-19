@@ -89,6 +89,9 @@ def ROI_Hand(img, depth, center, invalid_depth=32001):
     
         return dict(ROI = np.array([x_begin, x_end, y_begin, y_end], dtype="int16"), 
                     mean_depth = mean_depth)
+    
+    return dict(ROI = np.array([0, depth.shape[0], 0, depth.shape[1]]),
+                mean_depth=340)
      
 
 def ROI_from_pos(pos_arr, size=128):
