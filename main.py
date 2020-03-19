@@ -9,9 +9,9 @@ import torch.optim as optim
 
 # My Libraries
 from src.loadConfig import loadConfig
-from src.networks import HLoNet, PReNet, init_weights
+from src.networks import *
 from src.train import HLo_train, PRe_train
-from src.test import HLo_test, PRe_test, Synth_test, Dexter_test
+from src.test import HLo_test, PRe_test, Dexter_test
 from utils.tools import freeze_layers, load_pretrained_weights
 
 def main(mode=None, model_path=None):
@@ -23,15 +23,14 @@ def main(mode=None, model_path=None):
     3: train PReNet from checkpoint
     4: test HLoNet
     5: test PReNet
-    6: test the joint model on synthHands dataset
-    7: test the joint model on EgoDexter dataset
+    6: test the joint model on EgoDexter dataset
     """
 
     # Load configuration
     config = loadConfig()
 
     # Set the appropriate device property
-    if (torch.cuda.is_available()):
+    if (config.gpu != [] and torch.cuda.is_available()):
         device = torch.device("cuda")
         torch.backends.cudnn.benchmark = True
     else:
@@ -97,27 +96,42 @@ def main(mode=None, model_path=None):
             model.eval()
 
             if mode == 4: 
-                HLo_test(model, config.test_output_dir, device=device, mode=1)
+                with torch.no_grad():
+                    HLo_test(model, config.test_output_dir, device=device, mode=1)
             elif mode == 5:
                 with torch.no_grad():
                     PRe_test(model, config.test_output_dir, device=device)
 
     else:
-        Hal_dict = torch.load(model_path[0], map_location=device)
-        Jor_dict = torch.load(model_path[1], map_location=device)
+        Hlo_dict = torch.load(model_path[0], map_location=device)
+        Jlo_dict = torch.load(model_path[1], map_location=device)
+        Vpe_dict = torch.load(model_path[2], map_location=device)
+        Jor_dict = torch.load(model_path[3], map_location=device)
 
         HLo = HLoNet()
-        HLo.load_state_dict(Hal_dict['model'], strict=False)
+        HLo.load_state_dict(Hlo_dict['model'], strict=False)
+        HLo.eval()
         HLo.to(device)
 
+        JLo = JLoNet()
+        JLo.eval()
+        JLo.load_state_dict(Jlo_dict["model"], strict=False)
+        JLo.to(device)
+
+        VPE = ViewPoint_Estimator()
+        VPE.load_state_dict(Vpe_dict["model"], strict=False)
+        VPE.eval()
+        VPE.to(device) 
+
         PRe = PReNet()
+        PRe.eval()
         PRe.load_state_dict(Jor_dict['model'], strict=False)
+        PRe.eval()
         PRe.to(device)
 
-        if mode == 6 :
-            Synth_test(HLo, PRe, config.test_dir, config.test_output_dir)
-        elif mode == 7:
-            Dexter_test(HLo, PRe, config.test_dir, config.test_output_dir)   
+        model_set = {"HLo":HLo, "JLo":JLo, "VPE":VPE, "PRe":PRe}
+        with torch.no_grad():
+            Dexter_test(model_set, config.dexter_dir, config.test_output_dir, device=device)
 
 if __name__ == '__main__':
 

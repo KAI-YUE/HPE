@@ -92,7 +92,6 @@ class PReDataset(Dataset):
         R_inv = torch.from_numpy(a_set["R_inv"].astype("float32"))
         return dict(img=Img, pos=pos, R_inv=R_inv)
             
-
     def create_iterator(self, batch_size=1):
         while True:
             sample_loader = DataLoader(

@@ -13,7 +13,7 @@ from torch.utils.data import DataLoader
 from src.loadConfig import loadConfig, log_Level
 from src.dataset import HLoDataset, PReDataset
 from src.loss import HLoCriterion, PReCriterion
-from utils.tools import save_sample, save_model
+from utils.tools import save_sample, save_model, freeze_layers
 
 def HLo_train(model, optimizer, device="cuda", epoch=-1):
     config = loadConfig()
@@ -113,6 +113,13 @@ def HLo_train(model, optimizer, device="cuda", epoch=-1):
 
 def PRe_train(model, optimizer, device="cuda", epoch=-1):
     config = loadConfig()
+
+    # load DAE model
+    DAE = DAE_1L(60, 1000)
+    DAE.load_state_dict(torch.load(config.DAE_weight_file))
+    decoder = DAE.decoder
+    decoder = decoder.to(device)
+    freeze_layers(decoder)
 
     train_data = PReDataset(config.train_dir)
     train_loader = DataLoader(train_data, batch_size=config.batch_size, drop_last=True, shuffle=True)
