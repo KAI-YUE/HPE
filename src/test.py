@@ -506,9 +506,9 @@ def Dexter_test(model_set, input_dir, output_dir, device="cuda"):
                 pred_3d_pos_numpy += root_pos
 
                 error = np.mean(np.sqrt(np.sum((pred_3d_pos_numpy[fingertip_indices]-_3d_pos)**2, axis=-1)))
-                error_list.append(error)
                 if error > error_threshold:
                     continue
+                error_list.append(error)
 
                 accumulated_3d_error += error
                 proj_pred_3d_pos = project2plane(pred_3d_pos_numpy)
