@@ -215,13 +215,12 @@ def Dexter_test(model_set, input_dir, output_dir, device="cuda"):
 
     # Load networks model
     HLo = model_set["HLo"].eval()
-    JLo = model_set["JLo"].eval()
+    VPE = model_set["VPE"].eval()
     PRe = model_set["PRe"].eval()
     
     # Plot rows x cols to show results
-    plot_rows = 4
-    plot_cols = 7
-    num_parts = 21
+    plot_rows = 1
+    plot_cols = 5
     accumulated_3d_error = 0
 
     for root, dirs, files in os.walk(input_dir):
@@ -286,20 +285,18 @@ def Dexter_test(model_set, input_dir, output_dir, device="cuda"):
                 axs[0,2].set_title("Cropped")
                 axs[0,2].imshow(cropped_hand)
 
-                # Regress the joint position
+                # Regress the viewpoint and joint position
                 depth_with_img = np.dstack((cropped_depth_norm, cropped_hand/255)).transpose((2,0,1))
                 depth_with_img = depth_with_img.astype("float32")
                 Img = torch.from_numpy(depth_with_img)
                 Img = Img[None,...].to(device)
-                heatmaps = JLo(Img)
-                heatmaps_numpy = heatmaps.squeeze().cpu().detach().numpy()
-                pred_pos = naive_pos_from_heatmap(heatmaps_numpy)
+                R_inv = VPE(Img)
+                pre_output = PRe(Img)
+                pred_3d_pos = decoder(pre_output["pos"])
+                pred_3d_pos = (R_inv @ pred_3d_pos.transpose(-1,-2)).transpose(-1,-2)
+                pred_3d_pos_numpy = 1000*pred_3d_pos.numpy()
 
-                pred_pos_plot = pred_pos.copy()
-                pred_pos[:,0] = pred_pos[:,0]/scale_factors[1] + ROI[2]
-                pred_pos[:,1] = pred_pos[:,1]/scale_factors[0] + ROI[0]
-
-                pos0 = back_project(pred_pos[0], depth)
+                pos = back_project(pred_pos[0], depth)
                 pos5 = back_project(pred_pos[5], depth)
                 pos9 = back_project(pred_pos[9], depth)
                 pos5 -= pos0
