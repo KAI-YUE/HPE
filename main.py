@@ -9,7 +9,7 @@ import torch.optim as optim
 
 # My Libraries
 from src.loadConfig import loadConfig
-from src.networks import HLoNet, ViewPoint_Estimator, PReNet, init_weights
+from src.networks import *
 from src.train import HLo_train, PRe_train
 from src.test import HLo_test, PRe_test, Dexter_test
 from utils.tools import freeze_layers, load_pretrained_weights
@@ -102,14 +102,19 @@ def main(mode=None, model_path=None):
 
     else:
         Hlo_dict = torch.load(model_path[0], map_location=device)
-        Vpe_dict = torch.load(model_path[1], map_location=device)
-        Jor_dict = torch.load(model_path[2], map_location=device)
+        Jlo_dict = torch.load(model_path[1], map_location=device)
+        Vpe_dict = torch.load(model_path[2], map_location=device)
+        Jor_dict = torch.load(model_path[3], map_location=device)
 
         HLo = HLoNet()
-        HLo.eval()
         HLo.load_state_dict(Hlo_dict['model'], strict=False)
         HLo.eval()
         HLo.to(device)
+
+        JLo = JLoNet()
+        JLo.eval()
+        JLo.load_state_dict(Jlo_dict["model"], strict=False)
+        JLo.to(device)
 
         VPE = ViewPoint_Estimator()
         VPE.load_state_dict(Vpe_dict["model"], strict=False)
@@ -122,7 +127,7 @@ def main(mode=None, model_path=None):
         PRe.eval()
         PRe.to(device)
 
-        model_set = {"HLo":HLo, "VPE":VPE, "PRe":PRe}
+        model_set = {"HLo":HLo, "JLo":JLo, "VPE":VPE, "PRe":PRe}
         with torch.no_grad():
             Dexter_test(model_set, config.dexter_dir, config.test_output_dir)
 
