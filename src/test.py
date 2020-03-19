@@ -223,6 +223,7 @@ def Dexter_test(model_set, input_dir, output_dir, device="cuda"):
     plot_rows = 1
     plot_cols = 5
     accumulated_3d_error = 0
+    error_th = 60
     fingertip_indices = [4,8,12,16,20]
 
     for root, dirs, files in os.walk(input_dir):
@@ -236,7 +237,7 @@ def Dexter_test(model_set, input_dir, output_dir, device="cuda"):
             indices = np.arange(len(files))
             # random.shuffle(indices)
 
-            for i in range(config.test_samples):
+            for i in range(indices.shape[0]):
                 f = files[indices[i]]
                 with open(os.path.join(root, f), "rb") as fp:
                     a_set = pickle.load(fp)
@@ -301,11 +302,14 @@ def Dexter_test(model_set, input_dir, output_dir, device="cuda"):
 
                 pos0 = back_project(pred_2d_pos[0], depth)
 
-                R_inv = VPE(Img)
+                vpe_output = VPE(Img)
                 pre_output = PRe(Img)
                 pred_3d_pos = decoder(pre_output["pos"])
-                pred_3d_pos = (R_inv @ pred_3d_pos.transpose(-1,-2)).transpose(-1,-2)
+                pred_3d_pos = pred_3d_pos.view(1, -1, 3)
+                pred_3d_pos = (vpe_output["R_inv"] @ pred_3d_pos.transpose(-1,-2)).transpose(-1,-2)
+                pred_3d_pos = pred_3d_pos.squeeze()
                 pred_3d_pos_numpy = 1000*pred_3d_pos.numpy()
+                pred_3d_pos_numpy = np.vstack((np.zeros(3), pred_3d_pos_numpy))
                 pred_3d_pos_numpy += pos0 
 
                 # plot the original annotations
@@ -325,7 +329,10 @@ def Dexter_test(model_set, input_dir, output_dir, device="cuda"):
                 
                 # Plot the 3-D links results
                 error = np.mean(np.sqrt(np.sum((pred_3d_pos_numpy[fingertip_indices]-_3d_pos)**2, axis=-1)))
+                if error > error_th:
+                    continue
                 accumulated_3d_error += error
+
                 proj_pred_3d_pos = project2plane(pred_3d_pos_numpy)
                 proj_pred_3d_pos_plot = proj_pred_3d_pos
                 proj_pred_3d_pos_plot[:,0] = (proj_pred_3d_pos_plot[:,0] - ROI[2]) * scale_factors[1]

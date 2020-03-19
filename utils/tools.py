@@ -204,7 +204,10 @@ def back_project(pos_2d, depth, scale_factor=2, invalid_depth=0):
                 valid_counter += 1
 
     pos_3d = np.array([0., 0., 0.])
-    pos_3d[2] = sum_depth/valid_counter
+    if valid_counter != 0:
+        pos_3d[2] = sum_depth/valid_counter
+    else:
+        pos_3d[2] = 340
     pos_3d[0] = pos_3d[2]/f_x * (scale_factor * pos_2d[0] - x_0)
     pos_3d[1] = pos_3d[2]/f_y * (scale_factor * pos_2d[1] - y_0)
 

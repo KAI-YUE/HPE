@@ -30,7 +30,7 @@ def main(mode=None, model_path=None):
     config = loadConfig()
 
     # Set the appropriate device property
-    if (torch.cuda.is_available()):
+    if (config.gpu != [] and torch.cuda.is_available()):
         device = torch.device("cuda")
         torch.backends.cudnn.benchmark = True
     else:
@@ -129,7 +129,7 @@ def main(mode=None, model_path=None):
 
         model_set = {"HLo":HLo, "JLo":JLo, "VPE":VPE, "PRe":PRe}
         with torch.no_grad():
-            Dexter_test(model_set, config.dexter_dir, config.test_output_dir)
+            Dexter_test(model_set, config.dexter_dir, config.test_output_dir, device=device)
 
 if __name__ == '__main__':
 
