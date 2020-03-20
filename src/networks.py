@@ -128,7 +128,7 @@ class PReNet(nn.Module):
             nn.BatchNorm2d(256),
             nn.ReLU())
         
-        self.fc_theta1 = nn.Linear(256*16**2, 256)
+        self.fc_theta1 = nn.Linear(256*8**2, 256)
         self.fc_theta2 = nn.Linear(256, 7)
 
     def forward(self, x):
