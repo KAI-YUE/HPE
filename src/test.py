@@ -13,7 +13,7 @@ from torch.utils.data import DataLoader
 
 # My Libraries
 from src.loadConfig import loadConfig
-from utils.heatmap import Heatmap
+from utils.heatmap import Heatmap, Gaussian_heatmap
 from utils.hand_region import ROI_Hand
 from utils.plot_pos import plot_joint
 from src.loss import HLoCriterion, PReCriterion
@@ -242,11 +242,13 @@ def Dexter_test(model_set, input_dir, output_dir, device="cuda"):
     PRe = model_set["PRe"].eval()
     
     # Plot rows x cols to show results
-    plot_rows = 1
-    plot_cols = 5
+    plot_rows = 2
+    plot_cols = 4
     accumulated_3d_error = 0
+    accumulated_3d_error_precise = 0
     error_th = 60
     error_list = []
+    error_precise = []
     fingertip_indices = [4,8,12,16,20]
 
     for root, dirs, files in os.walk(input_dir):
@@ -265,6 +267,9 @@ def Dexter_test(model_set, input_dir, output_dir, device="cuda"):
                 with open(os.path.join(root, f), "rb") as fp:
                     a_set = pickle.load(fp)
                 
+                if not "palm_pos" in a_set:
+                    continue
+
                 img = a_set["img"]
                 depth = a_set["depth"]
                 depth_norm = a_set["depth_norm"]
@@ -290,13 +295,13 @@ def Dexter_test(model_set, input_dir, output_dir, device="cuda"):
                 
                 # Plot the result 
                 fig, axs = plt.subplots(nrows=plot_rows, ncols=plot_cols, figsize=(30, 15))
-                axs[0].set_axis_off()
-                axs[0].set_title("Original image")
-                axs[0].imshow(img_display)
+                axs[0,0].set_axis_off()
+                axs[0,0].set_title("Original image")
+                axs[0,0].imshow(img_display)
                 
-                axs[1].set_axis_off()
-                axs[1].set_title("Predicted {}".format(center))
-                axs[1].imshow(composite)
+                axs[0,1].set_axis_off()
+                axs[0,1].set_title("Predicted {}".format(center))
+                axs[0,1].imshow(composite)
 
                 # Plot the cropped hand
                 cropped_hand = img_display[ROI[0]:ROI[1], ROI[2]:ROI[3]]
@@ -307,9 +312,9 @@ def Dexter_test(model_set, input_dir, output_dir, device="cuda"):
                 cropped_depth_norm = np.where(cropped_depth_norm>depth_max, depth_max+mean_depth, cropped_depth_norm)
                 cropped_depth_norm = (cropped_depth_norm - mean_depth)/depth_max
 
-                axs[2].set_axis_off()
-                axs[2].set_title("Cropped")
-                axs[2].imshow(cropped_hand)
+                axs[0,2].set_axis_off()
+                axs[0,2].set_title("Cropped")
+                axs[0,2].imshow(cropped_hand)
 
                 # Regress the viewpoint and joint position
                 depth_with_img = np.dstack((cropped_depth_norm, cropped_hand/255)).transpose((2,0,1))
@@ -326,33 +331,50 @@ def Dexter_test(model_set, input_dir, output_dir, device="cuda"):
                 pos0 = back_project(pred_2d_pos[0], depth)
 
                 vpe_output = VPE(Img)
-                pre_output = PRe(Img)
-                pred_3d_pos = pre_output["pos"].view(1, -1, 3)
-                pred_3d_pos = (vpe_output["R_inv"] @ pred_3d_pos.transpose(-1,-2)).transpose(-1,-2)
+                pre_output = PRe(Img, vpe_output["R_inv"])
+                pred_3d_pos = pre_output["pos"]
                 pred_3d_pos = pred_3d_pos.squeeze()
-                pred_3d_pos_numpy = 1000*pred_3d_pos.numpy()
+                pred_3d_pos_numpy = 1000*pred_3d_pos.detach().cpu().numpy()
                 pred_3d_pos_numpy = np.vstack((np.zeros(3), pred_3d_pos_numpy))
-                pred_3d_pos_numpy += pos0 
+                pred_3d_pos_numpy = pred_3d_pos_numpy + pos0 
+                
+                # plot the palm center heatmap
+                heatmap = Heatmap(heatmaps_numpy[0])
+                composite = (alpha*cropped_hand + (1-alpha)*heatmap[...,::-1]).astype("uint8")
+                axs[0,3].set_axis_off()
+                axs[0,3].set_title("Palm Center")
+                axs[0,3].imshow(composite)
+                
+                # plot the precise plam center heatmap
+                pos0_precise = a_set["palm_pos"]
+                proj_pos0_precise = project2plane(pos0_precise.reshape((1,3)))
+                proj_pos0_precise[0,0] = (proj_pos0_precise[0,0] - ROI[2])*scale_factors[1]
+                proj_pos0_precise[0,1] = (proj_pos0_precise[0,1] - ROI[0])*scale_factors[0] 
+                heatmap_set = Gaussian_heatmap(cropped_hand, proj_pos0_precise.flatten())
+                axs[1,0].set_axis_off()
+                axs[1,0].set_title("Palm Center")
+                axs[1,0].imshow(heatmap_set["composite"].astype("uint8"))              
 
                 # plot the original annotations
                 _2d_pos = a_set["2d_pos"]
                 _3d_pos = a_set["3d_pos"]
+                R_inv_precise = a_set["R_inv"].astype("float32")
+                R_inv_precise = torch.from_numpy(R_inv_precise).view(1,3,3)
+                R_inv_precise = R_inv_precise.to(device)
 
                 # transform the pos array to the cropped image space
                 _2d_pos_plot = _2d_pos.copy()
                 _2d_pos_plot[:, 0] = (_2d_pos_plot[:, 0] - ROI[2])*scale_factors[1]
                 _2d_pos_plot[:, 1] = (_2d_pos_plot[:, 1] - ROI[0])*scale_factors[0]
 
-                axs[3].set_axis_off()
-                axs[3].set_title("Keypoints GT")
-                axs[3].imshow(cropped_hand)
+                axs[1,1].set_axis_off()
+                axs[1,1].set_title("Keypoints GT")
+                axs[1,1].imshow(cropped_hand)
                 for j in range(_2d_pos_plot.shape[0]):
-                    axs[3].scatter(_2d_pos_plot[j,0], _2d_pos_plot[j,1])
+                    axs[1,1].scatter(_2d_pos[j,0], _2d_pos[j,1])
                 
                 # Plot the 3-D links results
                 error = np.mean(np.sqrt(np.sum((pred_3d_pos_numpy[fingertip_indices]-_3d_pos)**2, axis=-1)))
-                if error > error_th:
-                    continue
                 accumulated_3d_error += error
                 error_list.append(error)
 
@@ -361,10 +383,33 @@ def Dexter_test(model_set, input_dir, output_dir, device="cuda"):
                 proj_pred_3d_pos_plot[:,0] = (proj_pred_3d_pos_plot[:,0] - ROI[2]) * scale_factors[1]
                 proj_pred_3d_pos_plot[:,1] = (proj_pred_3d_pos_plot[:,1] - ROI[0]) * scale_factors[0]
 
-                axs[4].set_axis_off()
-                axs[4].set_title("3D Links {:.3f}".format(error))
-                plot_joint(cropped_hand, proj_pred_3d_pos, axs[4])
+                axs[1,2].set_axis_off()
+                axs[1,2].set_title("3D Links {:.3f}".format(error))
+                plot_joint(cropped_hand, proj_pred_3d_pos, axs[1,2])
                 
+                # Predict again with the "precise" transformation
+                pre_output = PRe(Img, R_inv_precise)
+                pred_3d_pos = pre_output["pos"]
+                pred_3d_pos = pred_3d_pos.squeeze()
+                pred_3d_pos_numpy = 1000*pred_3d_pos.detach().cpu().numpy()
+                pred_3d_pos_numpy = np.vstack((np.zeros(3), pred_3d_pos_numpy))
+                pred_3d_pos_numpy = pred_3d_pos_numpy + pos0_precise 
+
+                error = np.mean(np.sqrt(np.sum((pred_3d_pos_numpy[fingertip_indices]-_3d_pos)**2, axis=-1)))
+                if error > error_th:
+                    continue
+                accumulated_3d_error_precise += error
+                error_precise.append(error)
+
+                proj_pred_3d_pos = project2plane(pred_3d_pos_numpy)
+                proj_pred_3d_pos_plot = proj_pred_3d_pos
+                proj_pred_3d_pos_plot[:,0] = (proj_pred_3d_pos_plot[:,0] - ROI[2]) * scale_factors[1]
+                proj_pred_3d_pos_plot[:,1] = (proj_pred_3d_pos_plot[:,1] - ROI[0]) * scale_factors[0]
+
+                axs[1,3].set_axis_off()
+                axs[1,3].set_title("3D Links {:.3f}".format(error))
+                plot_joint(cropped_hand, proj_pred_3d_pos, axs[1,3])
+
                 fig.savefig(os.path.join(new_dir, f[:5] + ".jpg"))
                 plt.close(fig)
 
@@ -378,7 +423,9 @@ def Dexter_test(model_set, input_dir, output_dir, device="cuda"):
                 break
     
     averaged_error = accumulated_3d_error/already_sampled 
-    np.savetxt(os.path.join(config.test_output_dir, "error_DAE1000.txt"), np.asarray([averaged_error]))
-    np.savetxt(os.path.join(config.test_output_dir, "error_arrtxt"), np.asarray(error_list))
+    averaged_error_precise = accumulated_3d_error_precise/already_sampled
+    np.savetxt(os.path.join(config.test_output_dir, "error_PCA20.txt"), np.asarray([averaged_error, averaged_error_precise]))
+    np.savetxt(os.path.join(config.test_output_dir, "error_arr.txt"), np.asarray(error_list))
+    np.savetxt(os.path.join(config.test_output_dir, "error_precise.txt"), np.asarray(error_precise))
 
         
