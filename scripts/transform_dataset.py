@@ -1,4 +1,4 @@
-﻿"""
+"""
 Transform the original SynthHands Dataset.
     1. Original images (color on depth) are downsampled. 
     2. The 3d coordinates in the depth camera frame are transferred to 2d.
@@ -207,9 +207,10 @@ def trans_EgoData(src_dir, dst_dir, category="Desk"):
             depth = cv2.imread(os.path.join(src_dir, "depth", depth_file.format(i)), -1)
             depth = cv2.resize(depth, (320, 240))
             
-            depth_min = np.min(depth)
-            depth_norm = np.where(depth==invalid_depth, depth_max, depth)
-            depth_norm = (depth - depth_min) / (depth_max - depth_min)
+            depth_norm = np.where(depth==invalid_depth, 2*depth_max, depth)
+            depth_min = np.min(depth_norm)
+            depth_norm = np.where(depth_norm>depth_max, depth_max, depth)
+            depth_norm = (depth_norm - depth_min) / (depth_max - depth_min)
             
             a_set["img"] = (color_on_depth/255).astype("float16")
             a_set["depth"] = depth

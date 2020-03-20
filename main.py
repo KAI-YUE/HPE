@@ -9,7 +9,7 @@ import torch.optim as optim
 
 # My Libraries
 from src.loadConfig import loadConfig
-from src.networks import HLoNet, JLoNet, PReNet, init_weights
+from src.networks import *
 from src.train import HLo_train, PRe_train
 from src.test import HLo_test, PRe_test, Dexter_test
 from utils.tools import freeze_layers, load_pretrained_weights
@@ -30,7 +30,7 @@ def main(mode=None, model_path=None):
     config = loadConfig()
 
     # Set the appropriate device property
-    if (torch.cuda.is_available()):
+    if (config.gpu != [] and torch.cuda.is_available()):
         device = torch.device("cuda")
         torch.backends.cudnn.benchmark = True
     else:
@@ -41,10 +41,12 @@ def main(mode=None, model_path=None):
         # Initialize the HLoNet
         if mode == 0:
             model = HLoNet()
+            model.apply(init_weights)
         elif mode == 1:
             model = PReNet()
             load_pretrained_weights(config.pretrained_model_dir, model)
-            freeze_layers(model, [0,1,2,3,4,5,6,7,8,9,10,11])
+            model.init_finalFC(config.PCA_weight_file)
+            freeze_layers(model, [0,1,2,3,4,5,6,7,8,9,10,11,16])
 
         model.to(device)
 
@@ -52,7 +54,7 @@ def main(mode=None, model_path=None):
         optimizer = optim.Adam(
             params = model.parameters(),
             lr = config.learning_rate,
-            weight_decay=0.0005
+            weight_decay=0.005
         )
 
         if mode == 0:
@@ -72,14 +74,14 @@ def main(mode=None, model_path=None):
             optimizer = optim.Adam(model.parameters())
             
             # Load the model and optimizer from the stored state_dict
-            model.load_state_dict(state_dict['model'], strict=False)
+            model.load_state_dict(state_dict['model'], strict=True)
             optimizer.load_state_dict(state_dict['optimizer'])
             optimizer.lr = config.learning_rate
 
             epoch = state_dict['epoch']
             del state_dict
             # Freeze certain layers
-            # freeze_layers(model, 11)
+            freeze_layers(model, [0,1,2,3,4,5,6,7,8,9,10,11,12])
 
             if mode == 2:
                 HLo_train(model, optimizer, device, epoch)
@@ -103,18 +105,23 @@ def main(mode=None, model_path=None):
     else:
         Hlo_dict = torch.load(model_path[0], map_location=device)
         Jlo_dict = torch.load(model_path[1], map_location=device)
-        Jor_dict = torch.load(model_path[2], map_location=device)
+        Vpe_dict = torch.load(model_path[2], map_location=device)
+        Jor_dict = torch.load(model_path[3], map_location=device)
 
         HLo = HLoNet()
-        HLo.eval()
         HLo.load_state_dict(Hlo_dict['model'], strict=False)
         HLo.eval()
         HLo.to(device)
 
         JLo = JLoNet()
-        JLo.load_state_dict(Jlo_dict["model"], strict=False)
         JLo.eval()
-        JLo.to(device) 
+        JLo.load_state_dict(Jlo_dict["model"], strict=False)
+        JLo.to(device)
+
+        VPE = ViewPoint_Estimator()
+        VPE.load_state_dict(Vpe_dict["model"], strict=False)
+        VPE.eval()
+        VPE.to(device) 
 
         PRe = PReNet()
         PRe.eval()
@@ -122,9 +129,9 @@ def main(mode=None, model_path=None):
         PRe.eval()
         PRe.to(device)
 
-        model_set = {"HLo":HLo, "JLo":JLo, "PRe":PRe}
+        model_set = {"HLo":HLo, "JLo":JLo, "VPE":VPE, "PRe":PRe}
         with torch.no_grad():
-            Dexter_test(model_set, config.dexter_dir, config.test_output_dir)
+            Dexter_test(model_set, config.dexter_dir, config.test_output_dir, device=device)
 
 if __name__ == '__main__':
 

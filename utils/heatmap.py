@@ -52,7 +52,7 @@ def Gaussian_heatmap(img, center, sigma=5):
     confidence_map = big_map[margin:-margin, margin:-margin]
     
     heatmap = Heatmap(confidence_map)
-    composite = alpha * heatmap + (1 - alpha) * img
+    composite = alpha * heatmap[...,::-1] + (1 - alpha) * img
     
     return dict(confidence_map=confidence_map, heatmap=heatmap, composite=composite)
 

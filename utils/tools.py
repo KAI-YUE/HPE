@@ -156,7 +156,7 @@ def project2plane(pos_3d, scale_factor=0.5):
     Project the 3d position array to 2d plane. Camera parameters: f_x = 475.6 f_y = 475.62 x_0 = 311.125 y_0 = 245.965
     -------------------------------------------------------------------------
     Args,
-        pos_3d:    ndarray(21 x 3), the 3d position array. 
+        pos_3d:    ndarray(n x 3), the 3d position array. 
         scale_factor:   the scale factor of the 2d_positions.
     """
     f_x = 475.62
@@ -164,7 +164,7 @@ def project2plane(pos_3d, scale_factor=0.5):
     x_0 = 311.125
     y_0 = 245.965
 
-    num_parts = 21
+    num_parts = pos_3d.shape[0]
     pos_arr = np.zeros((num_parts, 2), dtype="int")
 
     for i in range(num_parts):
@@ -172,6 +172,7 @@ def project2plane(pos_3d, scale_factor=0.5):
         pos_arr[i, 1] = 0.5 * (f_y / pos_3d[i, 2] * pos_3d[i, 1] + y_0)
 
     return pos_arr
+
 
 def back_project(pos_2d, depth, scale_factor=2, invalid_depth=0):
     """
@@ -204,13 +205,14 @@ def back_project(pos_2d, depth, scale_factor=2, invalid_depth=0):
                 valid_counter += 1
 
     pos_3d = np.array([0., 0., 0.])
-    pos_3d[2] = sum_depth/valid_counter
+    if valid_counter != 0:
+        pos_3d[2] = sum_depth/valid_counter
+    else:
+        pos_3d[2] = 340
     pos_3d[0] = pos_3d[2]/f_x * (scale_factor * pos_2d[0] - x_0)
     pos_3d[1] = pos_3d[2]/f_y * (scale_factor * pos_2d[1] - y_0)
 
-
     return pos_3d
-
 
 def freeze_layers(model, indices=None):
     """
@@ -237,7 +239,6 @@ def freeze_layers(model, indices=None):
                     param.requires_grad = False
                 j += 1
         
-
 
 def load_pretrained_weights(model_dir, model):
     with open(model_dir, "rb") as fp:
@@ -559,6 +560,13 @@ def load_pretrained_weights(model_dir, model):
     model.conv4f[1].bias.data.copy_(torch.from_numpy(state_dict["bn4f"]["bias"]))
     model.conv4f[1].running_mean.data.copy_(torch.from_numpy(state_dict["bn4f"]["mean"]))
     model.conv4f[1].running_var.data.copy_(torch.from_numpy(state_dict["bn4f"]["var"]))
+    
+    # Joints Regression
+    # model.fc1.weight.data.copy_(torch.from_numpy(state_dict["fc_joints3D_1_final_1"]["weights"]))
+    # model.fc1.bias.data.copy_(torch.from_numpy(state_dict["fc_joints3D_1_final_1"]["bias"]))
+
+    # model.fc2.weight.data.copy_(torch.from_numpy(state_dict["joints3D_prediction_final_1"]["weights"]))
+    # model.fc2.bias.data.copy_(torch.from_numpy(state_dict["joints3D_prediction_final_1"]["bias"]))
 
 
 mean_dict = \

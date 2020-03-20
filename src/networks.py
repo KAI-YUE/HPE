@@ -1,7 +1,4 @@
-﻿# Python Libraries
-import pickle
-
-# Pytorch Libraries
+﻿# Pytorch Libraries
 import torch
 import torch.nn as nn
 import torch.nn.functional as F
@@ -49,6 +46,7 @@ class HLoNet(nn.Module):
 
         y = self.Conv2(x)
 
+        # return 2*torch.sigmoid(y) - 1
         return y
 
 class JLoNet(nn.Module):
@@ -93,7 +91,9 @@ class JLoNet(nn.Module):
 
         y = self.Conv_hm(x)
 
+        # return 2*torch.sigmoid(y) - 1
         return y
+
 
 class PReNet(nn.Module):
     def __init__(self, in_dim=4):
@@ -129,9 +129,20 @@ class PReNet(nn.Module):
             nn.ReLU())
         
         self.fc1 = nn.Linear(256*8**2, 256)
-        self.fc2 = nn.Linear(256, 1000)
+        self.fc2 = nn.Linear(256, 20)
+        self.fc3 = nn.Linear(20, 60)
 
-    def forward(self, x):
+    def init_finalFC(self, src_dir):
+        """
+        Initialize the weights of the last fully-connected layer with PCA. 
+        """
+        with open(src_dir, "rb") as fp:
+            a_set = pickle.load(fp)
+
+        self.fc3.weight.data.copy_(torch.from_numpy(a_set["weight"]).to(torch.float32))
+        self.fc3.bias.data.copy_(torch.from_numpy(a_set["bias"]).to(torch.float32))
+
+    def forward(self, x, R_inv):
         x = self.conv1(x)
         x = self.maxpool(F.pad(x,(0,1,0,1)))
 
@@ -153,9 +164,72 @@ class PReNet(nn.Module):
 
         pos = self.fc1(x.view(x.shape[0], -1))
         pos = self.fc2(pos.view(pos.shape[0], -1))
-        
+        pos = self.fc3(pos.view(pos.shape[0], -1))
 
-        return dict(pos=pos)
+        pos = pos.view(pos.shape[0], -1, 3)
+        pos = (R_inv @ pos.transpose(-1,-2)).transpose(-1,-2)
+        return dict(pos=pos[:,None,...])
+
+class ViewPoint_Estimator(nn.Module):
+    def __init__(self, in_dim=4):
+        super(ViewPoint_Estimator, self).__init__()
+
+        self.conv1 = nn.Sequential( 
+            nn.Conv2d(in_channels=in_dim, out_channels=64, kernel_size=7, stride=2, padding=3),
+            nn.BatchNorm2d(64),
+            nn.ReLU())
+        self.maxpool = nn.MaxPool2d(kernel_size=3, stride=2)
+        
+        self.res2a = Conv_ResnetBlock(64, 64, 256)
+        self.res2b = Skip_ResnetBlock(256, 64, 256)
+        self.res2c = Skip_ResnetBlock(256, 64, 256)
+
+        self.res3a = Conv_ResnetBlock(256, 128, 512, stride=2)
+        self.res3b = Skip_ResnetBlock(512, 128, 512)
+        self.res3c = Skip_ResnetBlock(512, 128, 512)
+
+        self.res4a = Conv_ResnetBlock(512, 256, 1024, stride=2)
+        self.res4b = Skip_ResnetBlock(1024, 256, 1024)
+        self.res4c = Skip_ResnetBlock(1024, 256, 1024)
+        self.res4d = Skip_ResnetBlock(1024, 256, 1024)
+
+        self.conv4e = nn.Sequential(
+            nn.Conv2d(in_channels=1024, out_channels=512, kernel_size=3, stride=1, padding=1),
+            nn.BatchNorm2d(512),
+            nn.ReLU())
+
+        self.conv4f = nn.Sequential(
+            nn.Conv2d(in_channels=512, out_channels=256, kernel_size=3, stride=1, padding=1),
+            nn.BatchNorm2d(256),
+            nn.ReLU())
+        
+        self.fc1 = nn.Linear(256*8**2, 256)
+        self.fc2 = nn.Linear(256, 9)
+
+    def forward(self, x):
+        x = self.conv1(x)
+        x = self.maxpool(F.pad(x,(0,1,0,1)))
+
+        x = self.res2a(x)
+        x = self.res2b(x)
+        x = self.res2c(x)
+
+        x = self.res3a(x)
+        x = self.res3b(x)
+        x = self.res3c(x)
+
+        x = self.res4a(x)
+        x = self.res4b(x)
+        x = self.res4c(x)
+        x = self.res4d(x)
+
+        x = self.conv4e(x)
+        x = self.conv4f(x)
+
+        R_inv = self.fc1(x.view(x.shape[0], -1))
+        R_inv = self.fc2(R_inv.view(R_inv.shape[0], -1))
+
+        return dict(R_inv=R_inv.view(R_inv.shape[0], 3, 3))
 
 
 class Skip_ResnetBlock(nn.Module):
@@ -179,6 +253,7 @@ class Skip_ResnetBlock(nn.Module):
         y = x + self.basic_block(x)
         return F.relu(y)
 
+
 class Conv_ResnetBlock(nn.Module):
     """
     Resnet Block.
@@ -196,7 +271,7 @@ class Conv_ResnetBlock(nn.Module):
             nn.ReLU(),
 
             nn.Conv2d(in_channels=inter_dim, out_channels=out_dim, kernel_size=1, padding=0),
-            nn.BatchNorm2d(out_dim)
+            nn.BatchNorm2d(out_dim),
         )
 
         self.conv_block = nn.Sequential(
@@ -207,7 +282,6 @@ class Conv_ResnetBlock(nn.Module):
     def forward(self, x):
         y = self.basic_block(x) + self.conv_block(x)
         return F.relu(y)
-
 
 class ConvTransBlock(nn.Module):
     def __init__(self, in_channels, out_channels, kernel, stride, padding):
@@ -221,57 +295,6 @@ class ConvTransBlock(nn.Module):
         
     def forward(self, x):
         return self.convT_block(x)
-
-class DAE_2L(nn.Module):
-    def __init__(self, input_size=60, latent_size=20, intermidate_size=40, sigma=0.005):
-        super().__init__()
-        self.encoder = nn.Sequential(
-            nn.Linear(input_size, intermidate_size),
-            nn.ReLU(),
-            nn.Linear(intermidate_size, latent_size),
-            )
-        
-        self.decoder =  nn.Sequential(
-            nn.Linear(latent_size, intermidate_size),
-            nn.ReLU(),
-            nn.Linear(intermidate_size, input_size)
-            )
-        
-        # sigma for Gaussian noise
-        self.sigma = sigma
-        
-    def forward(self, x):
-        # Draw ranom noise from Gaussian distribution
-        x += self.sigma * torch.randn(x.shape).to(x)
-        latent_var = self.encoder(x.view(x.shape[0], -1))
-        y = self.decoder(latent_var)
-        
-        return dict(latent_var=latent_var, y=y) 
-
-
-class DAE_1L(nn.Module):
-    def __init__(self, input_size=60, latent_size=1000, sigma=0.005):
-        super(DAE_1L, self).__init__()
-        self.encoder = nn.Sequential(
-            nn.Linear(input_size, latent_size),
-            nn.ReLU(),
-            )
-        
-        self.decoder =  nn.Sequential(
-            nn.Linear(latent_size, input_size),
-            )
-        
-        # sigma for Gaussian noise
-        self.sigma = sigma
-        
-    def forward(self, x):
-        # Draw ranom noise from Gaussian distribution
-        x += self.sigma * torch.randn(x.shape).to(x)
-        latent_var = self.encoder(x.view(x.shape[0], -1))
-        y = self.decoder(latent_var)
-        
-        return dict(latent_var=latent_var, y=y) 
-
 
 def init_weights(module, init_type='normal', gain=0.02):
     '''

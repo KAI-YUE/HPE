@@ -10,7 +10,6 @@ import torch.optim as optim
 from torch.utils.data import DataLoader
 
 # My Libraries
-from src.networks import DAE_1L, DAE_2L
 from src.loadConfig import loadConfig, log_Level
 from src.dataset import HLoDataset, PReDataset
 from src.loss import HLoCriterion, PReCriterion
@@ -67,12 +66,10 @@ def HLo_train(model, optimizer, device="cuda", epoch=-1):
             # update the log
             if (config.log_interval and iteration % config.log_interval == 0):
                 logger.info("epoch {} iter {} loss {:.3f}".format(epoch, iteration, loss))
-            
+
             iteration += 1
 
-            # if (iteration > 5):
-            #     break
-        
+
         # save the model
         if (config.save_epoch and iteration % config.save_epoch == 0):
             save_model(os.path.join(config.model_dir, 'HLo_epoch{}.pth'.format(epoch)), model, optimizer, epoch)
@@ -163,10 +160,7 @@ def PRe_train(model, optimizer, device="cuda", epoch=-1):
 
             # Get output and calculate loss
             output = model(image, R_inv)
-            pred_pos = decoder(output["pos"]).view(output["pos"].shape[0], -1, 3)
-            pred_pos = (R_inv @ pred_pos.transpose(-1,-2)).transpose(-1,-2)
-            pred_pos = pred_pos.view_as(pos)
-            loss = L(pred_pos, pos)
+            loss = L(output["pos"], pos)
 
             # backward for PRe
             loss.backward()
@@ -175,6 +169,10 @@ def PRe_train(model, optimizer, device="cuda", epoch=-1):
             # update the log
             if (config.log_interval and iteration % config.log_interval == 0):
                 logger.info("epoch {} iter {} loss {:.3f} ".format(epoch, iteration, loss))
+            
+            if (config.save_iterations and iteration % config.save_iterations == 0):
+                save_model(os.path.join(config.model_dir, 'PRe_PCA20_epoch{}_iter{}.pth'.format(epoch, iteration)), model, optimizer, epoch)
+            
             iteration += 1
 
             # if (iteration > 5):
@@ -182,8 +180,9 @@ def PRe_train(model, optimizer, device="cuda", epoch=-1):
         
         # save the model
         if (config.save_epoch and iteration % config.save_epoch == 0):
-            save_model(os.path.join(config.model_dir, 'PRe_DAE1000_epoch{}.pth'.format(epoch)), model, optimizer, epoch)
-
+            save_model(os.path.join(config.model_dir, 'PRe_PCA20_epoch{}.pth'.format(epoch)), model, optimizer, epoch)
+            print('-'*80 + '\n{:.2f} h has elapsed'.format((time.time()-start)/3600))
+            
         # validate the model
         if(config.val_epoch and epoch % config.val_epoch == 0):
             
