@@ -363,9 +363,9 @@ def Dexter_test(model_set, input_dir, output_dir, device="cuda"):
                 theta_numpy = theta.detach().cpu().squeeze().numpy()
                 pred_3d_pos = forward_kinematics(theta_numpy, a_set["scale"])
 
-                pred_3d_pos_trans = (vpe_output["R_inv"] @ pred_3d_pos.T).T
-                pred_3d_pos_numpy = 1000*pred_3d_pos_trans
-                pred_3d_pos_numpy = np.vstack((np.zeros(3), pred_3d_pos_numpy))
+                R_inv = vpe_output["R_inv"].detach().cpu().squeeze().numpy()
+                pred_3d_pos_trans = (R_inv @ pred_3d_pos.T).T
+                pred_3d_pos_numpy = pred_3d_pos_trans
                 pred_3d_pos_numpy = pred_3d_pos_numpy + pos0 
                 
                 # plot the palm center heatmap
@@ -389,8 +389,6 @@ def Dexter_test(model_set, input_dir, output_dir, device="cuda"):
                 _2d_pos = a_set["2d_pos"]
                 _3d_pos = a_set["3d_pos"]
                 R_inv_precise = a_set["R_inv"].astype("float32")
-                R_inv_precise = torch.from_numpy(R_inv_precise).view(1,3,3)
-                R_inv_precise = R_inv_precise.to(device)
 
                 # transform the pos array to the cropped image space
                 _2d_pos_plot = _2d_pos.copy()
@@ -419,8 +417,7 @@ def Dexter_test(model_set, input_dir, output_dir, device="cuda"):
                 
                 # Predict again with the "precise" transformation
                 pred_3d_pos_trans = (R_inv_precise @ pred_3d_pos.T).T
-                pred_3d_pos_numpy = 1000*pred_3d_pos_trans
-                pred_3d_pos_numpy = np.vstack((np.zeros(3), pred_3d_pos_numpy))
+                pred_3d_pos_numpy = pred_3d_pos_trans
                 pred_3d_pos_numpy = pred_3d_pos_numpy + pos0_precise 
 
                 error = np.mean(np.sqrt(np.sum((pred_3d_pos_numpy[fingertip_indices]-_3d_pos)**2, axis=-1)))

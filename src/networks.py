@@ -131,6 +131,22 @@ class PReNet(nn.Module):
         self.fc_theta1 = nn.Linear(256*8**2, 256)
         self.fc_theta2 = nn.Linear(256, 7)
 
+        self.fc_scale1 = nn.Linear(256*8**2, 3)
+        self.fc_scale2 = nn.Linear(3, 20)
+
+        self.viewpoint_fc1 = nn.Linear(256*8**2, 256)
+        self.viewpoint_fc2 = nn.Linear(256, 9)
+
+    def init_finalFC(self, src_dir):
+        """
+        Initialize the weights of the last fully-connected layer with PCA. 
+        """
+        with open(src_dir, "rb") as fp:
+            a_set = pickle.load(fp)
+
+        self.fc_scale2.weight.data.copy_(torch.from_numpy(a_set["weight"]).to(torch.float32))
+        self.fc_scale2.bias.data.copy_(torch.from_numpy(a_set["bias"]).to(torch.float32))
+
     def forward(self, x):
         x = self.conv1(x)
         x = self.maxpool(F.pad(x,(0,1,0,1)))
@@ -154,8 +170,8 @@ class PReNet(nn.Module):
         theta = self.fc_theta1(x.view(x.shape[0], -1))
         theta = self.fc_theta2(F.relu(theta))
 
-        # scale = self.fc_scale1(x.view(x.shape[0], -1))
-        # scale = torch.sigmoid(self.fc_scale2(F.relu(scale))) 
+        scale = self.fc_scale1(x.view(x.shape[0], -1))
+        scale = torch.sigmoid(self.fc_scale2(scale)) 
 
         # return dict(scale=scale, theta=theta)
         return dict(theta = theta)
