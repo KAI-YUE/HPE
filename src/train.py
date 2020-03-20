@@ -69,12 +69,10 @@ def HLo_train(model, optimizer, device="cuda", epoch=-1):
             # update the log
             if (config.log_interval and iteration % config.log_interval == 0):
                 logger.info("epoch {} iter {} loss {:.3f}".format(epoch, iteration, loss))
-            
+
             iteration += 1
 
-            # if (iteration > 5):
-            #     break
-        
+
         # save the model
         if (config.save_epoch and iteration % config.save_epoch == 0):
             save_model(os.path.join(config.model_dir, 'HLo_epoch{}.pth'.format(epoch)), model, optimizer, epoch)
@@ -191,8 +189,9 @@ def PRe_train(model, optimizer, device="cuda", epoch=-1):
         
         # save the model
         if (config.save_epoch and iteration % config.save_epoch == 0):
-            save_model(os.path.join(config.model_dir, 'PRe_epoch{}.pth'.format(epoch)), model, optimizer, epoch)
-
+            save_model(os.path.join(config.model_dir, 'PRe_PCA20_epoch{}.pth'.format(epoch)), model, optimizer, epoch)
+            print('-'*80 + '\n{:.2f} h has elapsed'.format((time.time()-start)/3600))
+            
         # validate the model
         if(config.val_epoch and epoch % config.val_epoch == 0):
             
@@ -207,7 +206,7 @@ def PRe_train(model, optimizer, device="cuda", epoch=-1):
 
                     output = model(image)
 
-                    loss = L(output["pos"].to(device), pos)
+                    loss = L(output["pos"], pos)
                     logger.info("val loss {:.2f}".format(loss))
 
                     if (i > config.sample_size):

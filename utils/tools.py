@@ -10,6 +10,7 @@ import numpy as np
 
 # Pytorch Libraries
 import torch
+import torch.nn as nn
 
 # My Libraries
 from src.loadConfig import loadConfig
@@ -26,30 +27,6 @@ def post_process(image):
     std = torch.tensor([0.229, 0.224, 0.225]).view(3,1,1)
 
     return (image*std + mean).numpy()
-
-
-def pre_process(image):
-    """
-    Convert a ndarray image ranging between [0, 1] to tensor (prepared for a model.)
-    ----------------------------------------------------------
-    Args,
-        image:          ndarray (H x W x c), an image in rgb/grayscale format.
-    Returns
-        tensor_image:   tensor (1 x c x H x W)
-    """
-    # RGB format
-    if (len(image.shape) == 3):
-        # mean = np.array([0.485, 0.456, 0.406]).reshape(1,1,3)
-        # std = np.array([0.229, 0.224, 0.225]).reshape(1,1,3)
-        
-        # image = (image - mean) / std
-        image = image.transpose(2,0,1)
-
-        return torch.from_numpy(image).to(torch.float32).view(1, image.shape[0], image.shape[1], image.shape[2]).to(torch.float32)
-    
-    # Gray scale format
-    else:
-        return torch.from_numpy(image).to(torch.float32).view(1, 1, image.shape[0], image.shape[1]).to(torch.float32)
 
 
 def pos_from_heatmap(heatmaps, depth, ROI):
@@ -179,7 +156,7 @@ def project2plane(pos_3d, scale_factor=0.5):
     Project the 3d position array to 2d plane. Camera parameters: f_x = 475.6 f_y = 475.62 x_0 = 311.125 y_0 = 245.965
     -------------------------------------------------------------------------
     Args,
-        pos_3d:    ndarray(21 x 3), the 3d position array. 
+        pos_3d:    ndarray(n x 3), the 3d position array. 
         scale_factor:   the scale factor of the 2d_positions.
     """
     f_x = 475.62
@@ -187,7 +164,7 @@ def project2plane(pos_3d, scale_factor=0.5):
     x_0 = 311.125
     y_0 = 245.965
 
-    num_parts = 21
+    num_parts = pos_3d.shape[0]
     pos_arr = np.zeros((num_parts, 2), dtype="int")
 
     for i in range(num_parts):
@@ -196,13 +173,14 @@ def project2plane(pos_3d, scale_factor=0.5):
 
     return pos_arr
 
-def back_project(pos_2d, depth, scale_factor=2):
+
+def back_project(pos_2d, depth, scale_factor=2, invalid_depth=0):
     """
     Back project the 2d coordinates to the 3d frame. x = d/f_x * (u-x0), y = d/f_y * (v-y0). 
     ---------------------------------------------------------------------------
     Args,
         pos_2d:         ndarray(2, ), (u, v)
-        depth:          the depth value.
+        depth:          the depth map.
         scale_factor:   the scale factor of the 2d_positions.
     Returns,
         pos_3d:    ndarray(3, ), (x, y, z)
@@ -212,9 +190,27 @@ def back_project(pos_2d, depth, scale_factor=2):
     x_0 = 311.125
     y_0 = 245.965
 
-    pos_3d = np.array([0, 0, depth])
-    pos_3d[0] = depth/f_x * (scale_factor * pos_2d[0] - x_0)
-    pos_3d[1] = depth/f_y * (scale_factor * pos_2d[1] - y_0)
+    search_region = 2
+    sum_depth = 0
+    valid_counter = 0
+
+    i_min = max(0, pos_2d[1]-search_region)
+    i_max = min(depth.shape[0], pos_2d[1]+search_region+1)
+    j_min = max(0, pos_2d[0]-search_region)
+    j_max = min(depth.shape[1], pos_2d[0]+search_region+1)
+    for i in range(i_min, i_max):
+        for j in range(j_min, j_max):
+            if depth[i,j] != invalid_depth:
+                sum_depth += depth[i,j]
+                valid_counter += 1
+
+    pos_3d = np.array([0., 0., 0.])
+    if valid_counter != 0:
+        pos_3d[2] = sum_depth/valid_counter
+    else:
+        pos_3d[2] = 340
+    pos_3d[0] = pos_3d[2]/f_x * (scale_factor * pos_2d[0] - x_0)
+    pos_3d[1] = pos_3d[2]/f_y * (scale_factor * pos_2d[1] - y_0)
 
     return pos_3d
     
