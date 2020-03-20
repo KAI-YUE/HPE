@@ -105,7 +105,7 @@ def main(mode=None, model_path=None):
         Hlo_dict = torch.load(model_path[0], map_location=device)
         Jlo_dict = torch.load(model_path[1], map_location=device)
         Vpe_dict = torch.load(model_path[2], map_location=device)
-        Jor_dict = torch.load(model_path[3], map_location=device)
+        PRe_dict = torch.load(model_path[3], map_location=device)
 
         HLo = HLoNet()
         HLo.eval()
@@ -124,7 +124,7 @@ def main(mode=None, model_path=None):
 
         PRe = PReNet()
         PRe.eval()
-        PRe.load_state_dict(Jor_dict['model'], strict=False)
+        PRe.load_state_dict(PRe_dict['model'], strict=False)
         PRe.eval()
         PRe.to(device)
 

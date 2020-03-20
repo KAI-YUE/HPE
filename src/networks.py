@@ -128,31 +128,8 @@ class PReNet(nn.Module):
             nn.BatchNorm2d(256),
             nn.ReLU())
         
-        self.fc1 = nn.Linear(256*8**2, 256)
-        self.fc2 = nn.Linear(256, 20)
-
-    def forward(self, x):
-        x = self.conv1(x)
-        x = self.maxpool(F.pad(x,(0,1,0,1)))
-
-        x = self.res2a(x)
-        x = self.res2b(x)
-        x = self.res2c(x)
-
-        x = self.res3a(x)
-        x = self.res3b(x)
-        x = self.res3c(x)
-
-        x = self.res4a(x)
-        x = self.res4b(x)
-        x = self.res4c(x)
-        x = self.res4d(x)
-
         self.fc_theta1 = nn.Linear(256*16**2, 256)
         self.fc_theta2 = nn.Linear(256, 7)
-        
-        # self.fc_scale1 = nn.Linear(256*16**2, 256)
-        # self.fc_scale2 = nn.Linear(256, 20)
 
     def forward(self, x):
         x = self.conv1(x)
@@ -185,6 +162,66 @@ class PReNet(nn.Module):
         # return dict(scale = scale)
 
 
+class ViewPoint_Estimator(nn.Module):
+    def __init__(self, in_dim=4):
+        super(ViewPoint_Estimator, self).__init__()
+
+        self.conv1 = nn.Sequential( 
+            nn.Conv2d(in_channels=in_dim, out_channels=64, kernel_size=7, stride=2, padding=3),
+            nn.BatchNorm2d(64),
+            nn.ReLU())
+        self.maxpool = nn.MaxPool2d(kernel_size=3, stride=2)
+        
+        self.res2a = Conv_ResnetBlock(64, 64, 256)
+        self.res2b = Skip_ResnetBlock(256, 64, 256)
+        self.res2c = Skip_ResnetBlock(256, 64, 256)
+
+        self.res3a = Conv_ResnetBlock(256, 128, 512, stride=2)
+        self.res3b = Skip_ResnetBlock(512, 128, 512)
+        self.res3c = Skip_ResnetBlock(512, 128, 512)
+
+        self.res4a = Conv_ResnetBlock(512, 256, 1024, stride=2)
+        self.res4b = Skip_ResnetBlock(1024, 256, 1024)
+        self.res4c = Skip_ResnetBlock(1024, 256, 1024)
+        self.res4d = Skip_ResnetBlock(1024, 256, 1024)
+
+        self.conv4e = nn.Sequential(
+            nn.Conv2d(in_channels=1024, out_channels=512, kernel_size=3, stride=1, padding=1),
+            nn.BatchNorm2d(512),
+            nn.ReLU())
+
+        self.conv4f = nn.Sequential(
+            nn.Conv2d(in_channels=512, out_channels=256, kernel_size=3, stride=1, padding=1),
+            nn.BatchNorm2d(256),
+            nn.ReLU())
+        
+        self.fc1 = nn.Linear(256*8**2, 256)
+        self.fc2 = nn.Linear(256, 9)
+
+    def forward(self, x):
+        x = self.conv1(x)
+        x = self.maxpool(F.pad(x,(0,1,0,1)))
+
+        x = self.res2a(x)
+        x = self.res2b(x)
+        x = self.res2c(x)
+
+        x = self.res3a(x)
+        x = self.res3b(x)
+        x = self.res3c(x)
+
+        x = self.res4a(x)
+        x = self.res4b(x)
+        x = self.res4c(x)
+        x = self.res4d(x)
+
+        x = self.conv4e(x)
+        x = self.conv4f(x)
+
+        R_inv = self.fc1(x.view(x.shape[0], -1))
+        R_inv = self.fc2(R_inv.view(R_inv.shape[0], -1))
+
+        return dict(R_inv=R_inv.view(R_inv.shape[0], 3, 3))
 
 class Conv_ResnetBlock(nn.Module):
     """
@@ -247,7 +284,7 @@ class DAE_2L(nn.Module):
         self.sigma = sigma
         
     def forward(self, x):
-        # Draw ranom noise from Gaussian distribution
+        # Draw random noise from Gaussian distribution
         x += self.sigma * torch.randn(x.shape).to(x)
         latent_var = self.encoder(x.view(x.shape[0], -1))
         y = self.decoder(latent_var)
@@ -271,7 +308,7 @@ class DAE_1L(nn.Module):
         self.sigma = sigma
         
     def forward(self, x):
-        # Draw ranom noise from Gaussian distribution
+        # Draw random noise from Gaussian distribution
         x += self.sigma * torch.randn(x.shape).to(x)
         latent_var = self.encoder(x.view(x.shape[0], -1))
         y = self.decoder(latent_var)
