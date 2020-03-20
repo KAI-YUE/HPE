@@ -198,6 +198,9 @@ def trans_EgoData(src_dir, dst_dir, category="Desk"):
         
         else:
             a_set = {}
+            # with open(os.path.join(dst_dir, "{:05d}.dat".format(i)), "rb") as fp:
+            #     a_set = pickle.load(fp)
+            
             color_on_depth = cv2.imread(os.path.join(src_dir, "color_on_depth", color_file.format(i)))[...,::-1]
             color_on_depth = cv2.resize(color_on_depth, (320, 240))
             depth = cv2.imread(os.path.join(src_dir, "depth", depth_file.format(i)), -1)
@@ -258,8 +261,9 @@ def get_3dpos(file_name):
     return pos
 
 if __name__ == "__main__":
-    category = "Desk"
-    src_dir = r"F:\DataSets\EgoDexter\data\{}".format(category)
-    dst_dir = r"F:\Datasets\Dexter_transformed\{}".format(category)
-    
-    trans_EgoData(src_dir, dst_dir, category)
+    categories = ["Desk", "Fruits", "Kitchen", "Rotunda"]
+    for category in categories:
+        src_dir = r"F:\DataSets\EgoDexter\data\{}".format(category)
+        dst_dir = r"F:\Datasets\Dexter_transformed\{}".format(category)
+        
+        trans_EgoData(src_dir, dst_dir, category)

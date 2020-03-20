@@ -363,6 +363,12 @@ def Dexter_test(HLo, PRe, input_dir, output_dir, device="cuda"):
     config = loadConfig()
     
     already_sampled = 0
+
+    # Load DAE model
+    DAE = DAE_2L(29, 7, 29)
+    DAE.load_state_dict(torch.load(config.DAE_weight_file))
+    decoder = DAE.decoder
+    decoder = decoder.to(device)
     
     # Plot rows x cols to show results
     plot_rows = 4
@@ -393,8 +399,6 @@ def Dexter_test(HLo, PRe, input_dir, output_dir, device="cuda"):
                 center = center_from_heatmap(result.squeeze())
 
                 # Back projection with th predicted center
-                ##
-
                 hm = result.squeeze().detach().cpu().numpy()
                 img = (255*img).astype("uint8")
                 heatmap = Heatmap(hm)
@@ -432,9 +436,6 @@ def Dexter_test(HLo, PRe, input_dir, output_dir, device="cuda"):
                 result = PRe(Tensor_img)
                 hms = result[0].squeeze().cpu().detach().numpy()
                 pred_pos = naive_pos_from_heatmap(hms)
-
-                # pos_3d = result[1].cpu().detach().squeeze().numpy()
-                # pos_3d += np.array(x_0, y_0, d)
 
                 # plot the original annotations
                 axs[0, 3].set_axis_off()
