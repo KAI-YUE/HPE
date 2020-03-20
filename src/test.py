@@ -12,6 +12,7 @@ import torch.nn.functional as F
 from torch.utils.data import DataLoader
 
 # My Libraries
+from src.networks import DAE_1L, DAE_2L
 from src.loadConfig import loadConfig
 from utils.heatmap import Heatmap, Gaussian_heatmap
 from utils.hand_region import ROI_Hand
@@ -235,6 +236,12 @@ def Dexter_test(model_set, input_dir, output_dir, device="cuda"):
     cropped_size = tuple(config.cropped_size)
     already_sampled = 0
 
+    # load DAE model
+    DAE = DAE_2L(60, 20, 40)
+    DAE.load_state_dict(torch.load(config.DAE_weight_file))
+    decoder = DAE.decoder
+    decoder = decoder.to(device)
+
     # Load networks model
     HLo = model_set["HLo"].eval()
     JLo = model_set["JLo"].eval()
@@ -244,6 +251,7 @@ def Dexter_test(model_set, input_dir, output_dir, device="cuda"):
     # Plot rows x cols to show results
     plot_rows = 2
     plot_cols = 4
+
     accumulated_3d_error = 0
     accumulated_3d_error_precise = 0
     error_th = 60
@@ -285,23 +293,16 @@ def Dexter_test(model_set, input_dir, output_dir, device="cuda"):
                 ROI = ROI_with_mean_depth["ROI"]
                 mean_depth = ROI_with_mean_depth["mean_depth"]
 
-<<<<<<< HEAD
-                # Back projection with th predicted center
-                hm = result.squeeze().detach().cpu().numpy()
-                img_display = (255*img).astype("uint8")
-                heatmap = Heatmap(hm)
-=======
                 scale_factors[0] = cropped_size[1]/(ROI[1]-ROI[0])
                 scale_factors[1] = cropped_size[0]/(ROI[3]-ROI[2])
 
                 root_heatmap_numpy = root_heatmap.squeeze().detach().cpu().numpy()
                 img_display = (255*img).astype("uint8")
                 heatmap = Heatmap(root_heatmap_numpy)
->>>>>>> DAE-1000
                 composite = (alpha*img_display + (1-alpha)*heatmap[...,::-1]).astype("uint8")
                 
-                # Plot the result 
                 fig, axs = plt.subplots(nrows=plot_rows, ncols=plot_cols, figsize=(30, 15))
+                # Plot the result 
                 axs[0,0].set_axis_off()
                 axs[0,0].set_title("Original image")
                 axs[0,0].imshow(img_display)
@@ -311,11 +312,6 @@ def Dexter_test(model_set, input_dir, output_dir, device="cuda"):
                 axs[0,1].imshow(composite)
 
                 # Plot the cropped hand
-<<<<<<< HEAD
-                ROI = ROI_Hand(img, depth, center)
-                cropped_hand = img[ROI[0]:ROI[1], ROI[2]:ROI[3]]
-                cropped_hand = cv2.resize(cropped_hand, tuple(config.cropped_size))
-=======
                 cropped_hand = img_display[ROI[0]:ROI[1], ROI[2]:ROI[3]]
                 cropped_hand = cv2.resize(cropped_hand, cropped_size)
                 cropped_depth = depth[ROI[0]:ROI[1], ROI[2]:ROI[3]]
@@ -323,7 +319,6 @@ def Dexter_test(model_set, input_dir, output_dir, device="cuda"):
                 cropped_depth_norm = np.where(cropped_depth==invalid_depth, depth_max+mean_depth, cropped_depth)
                 cropped_depth_norm = np.where(cropped_depth_norm>depth_max, depth_max+mean_depth, cropped_depth_norm)
                 cropped_depth_norm = (cropped_depth_norm - mean_depth)/depth_max
->>>>>>> DAE-1000
 
                 axs[0,2].set_axis_off()
                 axs[0,2].set_title("Cropped")
@@ -344,10 +339,12 @@ def Dexter_test(model_set, input_dir, output_dir, device="cuda"):
                 pos0 = back_project(pred_2d_pos[0], depth)
 
                 vpe_output = VPE(Img)
-                pre_output = PRe(Img, vpe_output["R_inv"])
+                pre_output = PRe(Img)
                 pred_3d_pos = pre_output["pos"]
-                pred_3d_pos = pred_3d_pos.squeeze()
-                pred_3d_pos_numpy = 1000*pred_3d_pos.detach().cpu().numpy()
+                pred_3d_pos = decoder(pred_3d_pos)
+                pred_3d_pos = pred_3d_pos.view(1,-1,3)
+                pred_3d_pos_trans = (vpe_output["R_inv"] @ pred_3d_pos.transpose(-1,-2)).transpose(-1,-2)
+                pred_3d_pos_numpy = 1000*pred_3d_pos_trans.squeeze().detach().cpu().numpy()
                 pred_3d_pos_numpy = np.vstack((np.zeros(3), pred_3d_pos_numpy))
                 pred_3d_pos_numpy = pred_3d_pos_numpy + pos0 
                 
@@ -401,10 +398,8 @@ def Dexter_test(model_set, input_dir, output_dir, device="cuda"):
                 plot_joint(cropped_hand, proj_pred_3d_pos, axs[1,2])
                 
                 # Predict again with the "precise" transformation
-                pre_output = PRe(Img, R_inv_precise)
-                pred_3d_pos = pre_output["pos"]
-                pred_3d_pos = pred_3d_pos.squeeze()
-                pred_3d_pos_numpy = 1000*pred_3d_pos.detach().cpu().numpy()
+                pred_3d_pos_trans = (R_inv_precise @ pred_3d_pos.transpose(-1,-2)).transpose(-1,-2)
+                pred_3d_pos_numpy = 1000*pred_3d_pos_trans.squeeze().detach().cpu().numpy()
                 pred_3d_pos_numpy = np.vstack((np.zeros(3), pred_3d_pos_numpy))
                 pred_3d_pos_numpy = pred_3d_pos_numpy + pos0_precise 
 
@@ -437,7 +432,7 @@ def Dexter_test(model_set, input_dir, output_dir, device="cuda"):
     
     averaged_error = accumulated_3d_error/already_sampled 
     averaged_error_precise = accumulated_3d_error_precise/already_sampled
-    np.savetxt(os.path.join(config.test_output_dir, "error_PCA20.txt"), np.asarray([averaged_error, averaged_error_precise]))
+    np.savetxt(os.path.join(config.test_output_dir, "error_DAE20.txt"), np.asarray([averaged_error, averaged_error_precise]))
     np.savetxt(os.path.join(config.test_output_dir, "error_arr.txt"), np.asarray(error_list))
     np.savetxt(os.path.join(config.test_output_dir, "error_precise.txt"), np.asarray(error_precise))
 

@@ -130,19 +130,8 @@ class PReNet(nn.Module):
         
         self.fc1 = nn.Linear(256*8**2, 256)
         self.fc2 = nn.Linear(256, 20)
-        self.fc3 = nn.Linear(20, 60)
 
-    def init_finalFC(self, src_dir):
-        """
-        Initialize the weights of the last fully-connected layer with PCA. 
-        """
-        with open(src_dir, "rb") as fp:
-            a_set = pickle.load(fp)
-
-        self.fc3.weight.data.copy_(torch.from_numpy(a_set["weight"]).to(torch.float32))
-        self.fc3.bias.data.copy_(torch.from_numpy(a_set["bias"]).to(torch.float32))
-
-    def forward(self, x, R_inv):
+    def forward(self, x):
         x = self.conv1(x)
         x = self.maxpool(F.pad(x,(0,1,0,1)))
 
@@ -164,11 +153,8 @@ class PReNet(nn.Module):
 
         pos = self.fc1(x.view(x.shape[0], -1))
         pos = self.fc2(pos.view(pos.shape[0], -1))
-        pos = self.fc3(pos.view(pos.shape[0], -1))
 
-        pos = pos.view(pos.shape[0], -1, 3)
-        pos = (R_inv @ pos.transpose(-1,-2)).transpose(-1,-2)
-        return dict(pos=pos[:,None,...])
+        return dict(pos=pos)
 
 class ViewPoint_Estimator(nn.Module):
     def __init__(self, in_dim=4):
@@ -295,6 +281,56 @@ class ConvTransBlock(nn.Module):
         
     def forward(self, x):
         return self.convT_block(x)
+
+class DAE_2L(nn.Module):
+    def __init__(self, input_size=60, latent_size=20, intermidate_size=40, sigma=0.005):
+        super().__init__()
+        self.encoder = nn.Sequential(
+            nn.Linear(input_size, intermidate_size),
+            nn.ReLU(),
+            nn.Linear(intermidate_size, latent_size),
+            )
+        
+        self.decoder =  nn.Sequential(
+            nn.Linear(latent_size, intermidate_size),
+            nn.ReLU(),
+            nn.Linear(intermidate_size, input_size)
+            )
+        
+        # sigma for Gaussian noise
+        self.sigma = sigma
+        
+    def forward(self, x):
+        # Draw ranom noise from Gaussian distribution
+        x += self.sigma * torch.randn(x.shape).to(x)
+        latent_var = self.encoder(x.view(x.shape[0], -1))
+        y = self.decoder(latent_var)
+        
+        return dict(latent_var=latent_var, y=y) 
+
+
+class DAE_1L(nn.Module):
+    def __init__(self, input_size=60, latent_size=1000, sigma=0.005):
+        super(DAE_1L, self).__init__()
+        self.encoder = nn.Sequential(
+            nn.Linear(input_size, latent_size),
+            nn.ReLU(),
+            )
+        
+        self.decoder =  nn.Sequential(
+            nn.Linear(latent_size, input_size),
+            )
+        
+        # sigma for Gaussian noise
+        self.sigma = sigma
+        
+    def forward(self, x):
+        # Draw ranom noise from Gaussian distribution
+        x += self.sigma * torch.randn(x.shape).to(x)
+        latent_var = self.encoder(x.view(x.shape[0], -1))
+        y = self.decoder(latent_var)
+        
+        return dict(latent_var=latent_var, y=y) 
 
 def init_weights(module, init_type='normal', gain=0.02):
     '''
