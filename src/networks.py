@@ -177,14 +177,14 @@ class PReNet(nn.Module):
         x = self.conv4f(x)
 
         theta = self.fc_theta1(x.view(x.shape[0], -1))
-        theta = self.fc_theta2(theta)
+        theta = self.fc_theta2(F.relu(theta))
         theta = decoder(theta)
 
         scale = self.fc_scale1(x.view(x.shape[0], -1))
-        scale = torch.sigmoid(self.fc_scale2(scale)) 
+        scale = self.fc_scale2(scale) 
         
         R_inv = self.fc1_viewpoint(x.view(x.shape[0], -1))
-        R_inv = torch.sigmoid(self.fc2_viewpoint(R_inv))
+        R_inv = 2*torch.sigmoid(self.fc2_viewpoint(R_inv)) - 1
         R_inv = R_inv.view(R_inv.shape[0],3,3)
         
         pos = torch.zeros(x.shape[0], 20, 3)
@@ -192,12 +192,13 @@ class PReNet(nn.Module):
         for i in range(x.shape[0]):
             pos[i] = self.forward_kinematics(theta[i], scale[i])
             
-        pos = (R_inv @ pos.transpose(-1,-2)).transpose(-1,-2)
+        y = (R_inv @ pos.transpose(-1,-2)).transpose(-1,-2)
         
-        return dict(pos=pos, 
+        return dict(pos=y, 
                     scale=scale, 
                     theta=theta,
-                    R_inv=R_inv)
+                    R_inv=R_inv, 
+                    pos_raw=pos)
 
 
     def forward_kinematics(self, DH_theta_alpha, DH_scale):

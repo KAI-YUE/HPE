@@ -142,6 +142,7 @@ def PRe_test(model, output_dir, device="cuda"):
     cropped_size = tuple(config.cropped_size)
 
     already_sampled = 0
+    accumulated_error = 0
 
     # Load DAE model
     DAE = DAE_2L(29, 7, 29)
@@ -193,6 +194,7 @@ def PRe_test(model, output_dir, device="cuda"):
                 _3d_pos_arr_ = np.vstack((np.zeros(3),pred_3d_pos_numpy))
                 _3d_pos_arr_ += pos[0]
                 _3d_error = np.mean( np.sqrt(np.sum( (_3d_pos_arr_ - pos)**2, axis=1 )) )
+                accumulated_error += _3d_error
                 _2d_pos_arr_ = project2plane(_3d_pos_arr_)
                 _2d_pos_arr_[:,0] = (_2d_pos_arr_[:,0] - ROI[2])*a_set["scale_factors"][1]
                 _2d_pos_arr_[:,1] = (_2d_pos_arr_[:,1] - ROI[0])*a_set["scale_factors"][0]
@@ -221,8 +223,7 @@ def PRe_test(model, output_dir, device="cuda"):
             if (already_sampled > config.test_samples):
                 break
     
-    networks_output = np.asarray(networks_output)
-    np.save(os.path.join(config.test_output_dir, "DAE_1000_space.npy"), networks_output)
+    np.savetxt(os.path.join(config.test_output_dir, "kin.txt"), np.array([accumulated_error/already_sampled]))
 
 
 def Dexter_test(model_set, input_dir, output_dir, device="cuda"):
@@ -349,7 +350,6 @@ def Dexter_test(model_set, input_dir, output_dir, device="cuda"):
 
                 pred_3d_pos_numpy = pred_3d_pos.detach().cpu().squeeze().numpy()
                 pred_3d_pos_numpy = np.vstack((np.zeros(3), pred_3d_pos_numpy))
-                pred_3d_pos_numpy = pred_3d_pos_numpy + pos0 
                 
                 # plot the palm center heatmap
                 heatmap = Heatmap(heatmaps_numpy[0])
@@ -358,7 +358,7 @@ def Dexter_test(model_set, input_dir, output_dir, device="cuda"):
                 axs[0,3].set_title("Palm Center")
                 axs[0,3].imshow(composite)
                 
-                # plot the precise plam center heatmap
+                # plot the precise palm center heatmap
                 pos0_precise = a_set["palm_pos"]
                 proj_pos0_precise = project2plane(pos0_precise.reshape((1,3)))
                 proj_pos0_precise[0,0] = (proj_pos0_precise[0,0] - ROI[2])*scale_factors[1]
@@ -384,17 +384,34 @@ def Dexter_test(model_set, input_dir, output_dir, device="cuda"):
                 for j in range(_2d_pos_plot.shape[0]):
                     axs[1,1].scatter(_2d_pos[j,0], _2d_pos[j,1])
                 
-                # Plot the 3-D links results
-                error = np.mean(np.sqrt(np.sum((pred_3d_pos_numpy[fingertip_indices]-_3d_pos)**2, axis=-1)))
+                # Predict again with the "precise" result
+                pred_3d_pos_trans = pre_output["pos_raw"].detach().cpu().squeeze().numpy()
+                pred_3d_pos_trans = (a_set["R_inv"] @ pred_3d_pos_trans.T).T
+                pred_3d_pos_trans = np.vstack((np.zeros(3), pred_3d_pos_trans))
+                pred_3d_pos_trans += a_set["palm_pos"]
+                error = np.mean(np.sqrt(np.sum((pred_3d_pos_trans[fingertip_indices]-_3d_pos)**2, axis=-1)))
                 if error > error_th:
                     continue
+
                 accumulated_3d_error_precise += error
                 error_precise.append(error)
-                
+
+                proj_pred_3d_pos = project2plane(pred_3d_pos_trans)
+                proj_pred_3d_pos_plot = proj_pred_3d_pos
+                proj_pred_3d_pos_plot[:,0] = (proj_pred_3d_pos_plot[:,0] - ROI[2]) * scale_factors[1]
+                proj_pred_3d_pos_plot[:,1] = (proj_pred_3d_pos_plot[:,1] - ROI[0]) * scale_factors[0]
+
+                axs[1,3].set_axis_off()
+                axs[1,3].set_title("3D Links {:.3f}".format(error))
+                plot_joint(cropped_hand, proj_pred_3d_pos, axs[1,3])
+
+                # Plot the 3-D links results
+                pred_3d_pos_trans = pred_3d_pos_numpy + pos0 
+                error = np.mean(np.sqrt(np.sum((pred_3d_pos_trans[fingertip_indices]-_3d_pos)**2, axis=-1)))
                 accumulated_3d_error += error
                 error_list.append(error)
 
-                proj_pred_3d_pos = project2plane(pred_3d_pos_numpy)
+                proj_pred_3d_pos = project2plane(pred_3d_pos_trans)
                 proj_pred_3d_pos_plot = proj_pred_3d_pos
                 proj_pred_3d_pos_plot[:,0] = (proj_pred_3d_pos_plot[:,0] - ROI[2]) * scale_factors[1]
                 proj_pred_3d_pos_plot[:,1] = (proj_pred_3d_pos_plot[:,1] - ROI[0]) * scale_factors[0]
@@ -403,12 +420,7 @@ def Dexter_test(model_set, input_dir, output_dir, device="cuda"):
                 axs[1,2].set_title("3D Links {:.3f}".format(error))
                 plot_joint(cropped_hand, proj_pred_3d_pos, axs[1,2])
 
-                proj_pred_3d_pos = project2plane(pred_3d_pos_numpy)
-                proj_pred_3d_pos_plot = proj_pred_3d_pos
-                proj_pred_3d_pos_plot[:,0] = (proj_pred_3d_pos_plot[:,0] - ROI[2]) * scale_factors[1]
-                proj_pred_3d_pos_plot[:,1] = (proj_pred_3d_pos_plot[:,1] - ROI[0]) * scale_factors[0]
-
-
+                
                 fig.savefig(os.path.join(new_dir, f[:5] + ".jpg"))
                 plt.close(fig)
 
