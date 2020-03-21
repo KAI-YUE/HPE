@@ -157,60 +157,31 @@ def PRe_train(model, optimizer, device="cuda", epoch=-1):
             
             optimizer.zero_grad()
             
-            image = data['img'].to(device)
-            pos = data['pos']
-            scale = data["scale"].to(device)
-            theta_alpha = data["theta_alpha"].to(device)
+            for key, val in data.items():
+                data[key] = val.to(device)
 
             # Get output and calculate loss
-            output = model(image)
-            output["theta"] = decoder(output["theta"])
-            loss = L(output, scale, theta_alpha)
+            output = model(data["img"], decoder)
+            loss_dict = L(output, data)
 
             # backward for PRe
-            loss.backward()
+            loss_dict["loss"].backward()
             optimizer.step()
-
-            pred_pos = np.zeros((pos.shape[0], 21, 3))
-            for i in range(pos.shape[0]):
-                # pred_pos[i] = forward_kinematics(output["theta"][i].cpu().detach().squeeze().numpy(), output["scale"][i].cpu().detach().squeeze().numpy())
-                pred_pos[i] = forward_kinematics(output["theta"][i].cpu().detach().squeeze().numpy(), scale[i].detach().cpu().numpy())
-                # pred_pos[i] = forward_kinematics(theta_alpha[i].detach().cpu().numpy(), output["scale"][i].cpu().detach().squeeze().numpy())
-
-            pos_loss = 1/pred_pos.shape[0] * np.sum(np.sqrt(np.sum((pred_pos - pos.squeeze().numpy())**2, -1)))
 
             # update the log
             if (config.log_interval and iteration % config.log_interval == 0):
-                logger.info("epoch {} iter {} error {:.3f} DH_loss {:.3f}".format(epoch, iteration, pos_loss, loss))
+                logger.info("epoch {} iter {} loss {:.3f} pos {:.3f}".format(epoch, iteration, loss_dict["loss"], loss_dict["pos_loss"]))
             iteration += 1
 
-            # if (iteration > 5):
-            #     break
+            if (config.save_iterations and iteration % config.save_iterations == 0):
+                save_model(os.path.join(config.model_dir, 'PRe_kin_iter{}_epoch{}.pth'.format(iteration, epoch)), model, optimizer, epoch)
+                print('-'*80 + '\n{:.2f} h has elapsed'.format((time.time()-start)/3600))
         
         # save the model
-        if (config.save_epoch and iteration % config.save_epoch == 0):
-            save_model(os.path.join(config.model_dir, 'PRe_PCA20_epoch{}.pth'.format(epoch)), model, optimizer, epoch)
+        if (config.save_epoch and epoch % config.save_epoch == 0):
+            save_model(os.path.join(config.model_dir, 'PRe_kin_epoch{}.pth'.format(epoch)), model, optimizer, epoch)
             print('-'*80 + '\n{:.2f} h has elapsed'.format((time.time()-start)/3600))
             
-        # validate the model
-        if(config.val_epoch and epoch % config.val_epoch == 0):
-            
-            model.eval()
-            logger.info("="*80)
-            with torch.no_grad():
-                for i, data in enumerate(val_loader, 0):
-                    
-                    image = data['img'].to(device)
-                    heatmap = data['hm'].to(device)
-                    pos = data['pos'].to(device)
-
-                    output = model(image)
-
-                    loss = L(output["pos"], pos)
-                    logger.info("val loss {:.2f}".format(loss))
-
-                    if (i > config.sample_size):
-                        break
             
         print('-'*80 + '\n{:.2f} h has elapsed'.format((time.time()-start)/3600))
         

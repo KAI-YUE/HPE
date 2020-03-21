@@ -172,17 +172,16 @@ def PRe_test(model, output_dir, device="cuda"):
                 pos = 1000*a_set["3d_pos"] + a_set["root_pos"]
                 ROI = a_set["ROI"]
                 img = a_set["cropped_img"]
-                depth = a_set["cropped_depth_norm"]
+                depth = a_set["cropped_depth"]
                 depth_with_img = np.dstack((depth, img)).transpose((2,0,1))
                 depth_with_img = depth_with_img.astype("float32")
                 Img = torch.from_numpy(depth_with_img)
                 Img = Img[None, ...].to(device)
 
-                result = model(Img)
-                theta = decoder(result["theta"])
-                theta_numpy = theta.detach().cpu().squeeze().numpy()
-                pred_pos = forward_kinematics(theta_numpy, a_set["DH_scale"])
-                
+                result = model(Img, decoder)
+                pred_3d_pos = result["pos"]
+                pred_3d_pos_numpy = pred_3d_pos.detach().cpu().squeeze().numpy()
+
                 fig, axs = plt.subplots(nrows=plot_rows, ncols=plot_cols, figsize=(20, 15))
                                 
                 # Plot the original image
@@ -191,13 +190,8 @@ def PRe_test(model, output_dir, device="cuda"):
                 axs[0].imshow((255*a_set["img"]).astype("uint8"))
                 img = (255*a_set["cropped_img"]).astype("uint8")
 
-                _3d_pos_arr_ = pred_pos.copy()
-                gt_3d_arr = forward_kinematics(a_set["DH_theta_alpha"], a_set["DH_scale"])
-                R_inv = a_set["R_inv"]
-                for i in range(_3d_pos_arr_.shape[0]):
-                    _3d_pos_arr_[i] = R_inv @ _3d_pos_arr_[i] + pos[0]
-                    gt_3d_arr[i] = R_inv @ gt_3d_arr[i] + pos[0]
-
+                _3d_pos_arr_ = np.vstack((np.zeros(3),pred_3d_pos_numpy))
+                _3d_pos_arr_ += pos[0]
                 _3d_error = np.mean( np.sqrt(np.sum( (_3d_pos_arr_ - pos)**2, axis=1 )) )
                 _2d_pos_arr_ = project2plane(_3d_pos_arr_)
                 _2d_pos_arr_[:,0] = (_2d_pos_arr_[:,0] - ROI[2])*a_set["scale_factors"][1]
@@ -215,15 +209,9 @@ def PRe_test(model, output_dir, device="cuda"):
                 _2d_pos[:,0] = (_2d_pos[:,0] - ROI[2]) * a_set["scale_factors"][1]
                 _2d_pos[:,1] = (_2d_pos[:,1] - ROI[0])* a_set["scale_factors"][0]
                 plot_joint(img, _2d_pos, axs[2])
-
-                pos = torch.from_numpy(a_set['norm_3d_pos'].astype('float32'))
-                pos = pos[None, 1:, :]
-                axs[3].set_axis_off()
-                axs[3].set_title("Append")
-                _2d_pos_arr_ = project2plane(gt_3d_arr)
-                _2d_pos_arr_[:,0] = (_2d_pos_arr_[:,0] - ROI[2])*a_set["scale_factors"][1]
-                _2d_pos_arr_[:,1] = (_2d_pos_arr_[:,1] - ROI[0])*a_set["scale_factors"][0]
-                plot_joint(img, _2d_pos_arr_, axs[3])
+                
+                fig.savefig(os.path.join(new_dir, f[:8] + ".jpg"))
+                plt.close(fig)
                 
                 sampled_in_folder += 1
                 if (sampled_in_folder > config.samples_per_folder):
@@ -264,7 +252,6 @@ def Dexter_test(model_set, input_dir, output_dir, device="cuda"):
     # Load networks model
     HLo = model_set["HLo"].eval()
     JLo = model_set["JLo"].eval()
-    VPE = model_set["VPE"].eval()
     PRe = model_set["PRe"].eval()
     
     # Plot rows x cols to show results
@@ -357,15 +344,11 @@ def Dexter_test(model_set, input_dir, output_dir, device="cuda"):
 
                 pos0 = back_project(pred_2d_pos[0], depth)
 
-                vpe_output = VPE(Img)
-                pre_output = PRe(Img)
-                theta = decoder(pre_output["theta"])
-                theta_numpy = theta.detach().cpu().squeeze().numpy()
-                pred_3d_pos = forward_kinematics(theta_numpy, a_set["scale"])
+                pre_output = PRe(Img, decoder)
+                pred_3d_pos = pre_output["pos"]
 
-                R_inv = vpe_output["R_inv"].detach().cpu().squeeze().numpy()
-                pred_3d_pos_trans = (R_inv @ pred_3d_pos.T).T
-                pred_3d_pos_numpy = pred_3d_pos_trans
+                pred_3d_pos_numpy = pred_3d_pos.detach().cpu().squeeze().numpy()
+                pred_3d_pos_numpy = np.vstack((np.zeros(3), pred_3d_pos_numpy))
                 pred_3d_pos_numpy = pred_3d_pos_numpy + pos0 
                 
                 # plot the palm center heatmap
@@ -403,6 +386,11 @@ def Dexter_test(model_set, input_dir, output_dir, device="cuda"):
                 
                 # Plot the 3-D links results
                 error = np.mean(np.sqrt(np.sum((pred_3d_pos_numpy[fingertip_indices]-_3d_pos)**2, axis=-1)))
+                if error > error_th:
+                    continue
+                accumulated_3d_error_precise += error
+                error_precise.append(error)
+                
                 accumulated_3d_error += error
                 error_list.append(error)
 
@@ -414,26 +402,12 @@ def Dexter_test(model_set, input_dir, output_dir, device="cuda"):
                 axs[1,2].set_axis_off()
                 axs[1,2].set_title("3D Links {:.3f}".format(error))
                 plot_joint(cropped_hand, proj_pred_3d_pos, axs[1,2])
-                
-                # Predict again with the "precise" transformation
-                pred_3d_pos_trans = (R_inv_precise @ pred_3d_pos.T).T
-                pred_3d_pos_numpy = pred_3d_pos_trans
-                pred_3d_pos_numpy = pred_3d_pos_numpy + pos0_precise 
-
-                error = np.mean(np.sqrt(np.sum((pred_3d_pos_numpy[fingertip_indices]-_3d_pos)**2, axis=-1)))
-                if error > error_th:
-                    continue
-                accumulated_3d_error_precise += error
-                error_precise.append(error)
 
                 proj_pred_3d_pos = project2plane(pred_3d_pos_numpy)
                 proj_pred_3d_pos_plot = proj_pred_3d_pos
                 proj_pred_3d_pos_plot[:,0] = (proj_pred_3d_pos_plot[:,0] - ROI[2]) * scale_factors[1]
                 proj_pred_3d_pos_plot[:,1] = (proj_pred_3d_pos_plot[:,1] - ROI[0]) * scale_factors[0]
 
-                axs[1,3].set_axis_off()
-                axs[1,3].set_title("3D Links {:.3f}".format(error))
-                plot_joint(cropped_hand, proj_pred_3d_pos, axs[1,3])
 
                 fig.savefig(os.path.join(new_dir, f[:5] + ".jpg"))
                 plt.close(fig)

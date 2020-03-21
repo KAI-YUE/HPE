@@ -1,4 +1,6 @@
-﻿# Pytorch Libraries
+﻿import pickle
+
+# Pytorch Libraries
 import torch
 import torch.nn as nn
 import torch.nn.functional as F
@@ -134,8 +136,15 @@ class PReNet(nn.Module):
         self.fc_scale1 = nn.Linear(256*8**2, 3)
         self.fc_scale2 = nn.Linear(3, 20)
 
-        self.viewpoint_fc1 = nn.Linear(256*8**2, 256)
-        self.viewpoint_fc2 = nn.Linear(256, 9)
+        self.fc1_viewpoint = nn.Linear(256*8**2, 256)
+        self.fc2_viewpoint= nn.Linear(256, 9)
+
+        self.averaged_phalanx_length = torch.tensor\
+            ([40.712, 34.040, 29.417, 26.423,
+            79.706, 35.224, 23.270, 22.036,
+            75.669, 41.975, 26.329, 24.504,
+            75.358, 39.978, 23.513, 22.647,
+            74.556, 27.541, 19.826, 20.395], device="cuda")
 
     def init_finalFC(self, src_dir):
         """
@@ -147,7 +156,7 @@ class PReNet(nn.Module):
         self.fc_scale2.weight.data.copy_(torch.from_numpy(a_set["weight"]).to(torch.float32))
         self.fc_scale2.bias.data.copy_(torch.from_numpy(a_set["bias"]).to(torch.float32))
 
-    def forward(self, x):
+    def forward(self, x, decoder):
         x = self.conv1(x)
         x = self.maxpool(F.pad(x,(0,1,0,1)))
 
@@ -168,14 +177,180 @@ class PReNet(nn.Module):
         x = self.conv4f(x)
 
         theta = self.fc_theta1(x.view(x.shape[0], -1))
-        theta = self.fc_theta2(F.relu(theta))
+        theta = self.fc_theta2(theta)
+        theta = decoder(theta)
 
         scale = self.fc_scale1(x.view(x.shape[0], -1))
         scale = torch.sigmoid(self.fc_scale2(scale)) 
+        
+        R_inv = self.fc1_viewpoint(x.view(x.shape[0], -1))
+        R_inv = torch.sigmoid(self.fc2_viewpoint(R_inv))
+        R_inv = R_inv.view(R_inv.shape[0],3,3)
+        
+        pos = torch.zeros(x.shape[0], 20, 3)
+        pos = pos.to(x)
+        for i in range(x.shape[0]):
+            pos[i] = self.forward_kinematics(theta[i], scale[i])
+            
+        pos = (R_inv @ pos.transpose(-1,-2)).transpose(-1,-2)
+        
+        return dict(pos=pos, 
+                    scale=scale, 
+                    theta=theta,
+                    R_inv=R_inv)
 
-        # return dict(scale=scale, theta=theta)
-        return dict(theta = theta)
-        # return dict(scale = scale)
+
+    def forward_kinematics(self, DH_theta_alpha, DH_scale):
+    
+        DH_a = DH_scale * self.averaged_phalanx_length
+        
+        pos = torch.zeros((20, 3))
+        p0 = torch.tensor([0., 0., 0., 1.])
+        
+        # For each sample
+        
+        # Thumb kinematics
+        z = self.z_matrix(DH_theta_alpha[0])
+        x = self.x_matrix(torch.tensor(-3.14159/2), torch.tensor(0.))
+        T = z @ x
+        
+        # transform to thunmb_joint0
+        z = self.z_matrix(DH_theta_alpha[1])
+        x = self.x_matrix(torch.tensor(3.14159/2), DH_a[0])
+        T = T @ z @ x
+        pos[0] = (T @ p0) [:3]
+        
+        z = self.z_matrix(DH_theta_alpha[2])
+        x = self.x_matrix(torch.tensor(-3.14159/2), torch.tensor(0.))
+        T = T @ z @ x
+        
+        # transform to thunmb_joint1
+        z = self.z_matrix(DH_theta_alpha[3])
+        x = self.x_matrix(torch.tensor(3.14159/2), DH_a[1])
+        T = T @ z @ x
+        pos[1] = (T @ p0) [:3]
+        
+        z = self.z_matrix(DH_theta_alpha[4])
+        x = self.x_matrix(torch.tensor(-3.14159/2), torch.tensor(0.))
+        T = T @ z @ x
+        
+        # transform to thunmb_joint2
+        z = self.z_matrix(DH_theta_alpha[5])
+        x = self.x_matrix(torch.tensor(3.14159/2), DH_a[2])
+        T = T @ z @ x
+        pos[2] = (T @ p0) [:3]
+        
+        z = self.z_matrix(DH_theta_alpha[6])
+        x = self.x_matrix(torch.tensor(-3.14159/2), torch.tensor(0.))
+        T = T @ z @ x
+        # transform to thunmb_joint3
+        z = self.z_matrix(DH_theta_alpha[7])
+        x = self.x_matrix(torch.tensor(0.), DH_a[3])
+        T = T @ z @ x
+        pos[3] = (T @ p0) [:3]
+        
+        # Index finger kinematics
+        z = self.z_matrix(DH_theta_alpha[8])
+        x = self.x_matrix(torch.tensor(0.), DH_a[4])
+        T = z @ x
+        pos[4] = (T @ p0) [:3]
+        
+        z = self.z_matrix(DH_theta_alpha[9])
+        x = self.x_matrix(torch.tensor(-3.14159/2), torch.tensor(0.))
+        T = T @ z @ x
+        
+        for l in range(3):
+            z = self.z_matrix(DH_theta_alpha[10+l])
+            x = self.x_matrix(torch.tensor(0.), DH_a[5+l])
+            T = T @ z @ x
+            pos[5+l] = (T @ p0) [:3]
+        
+        # middle finger
+        z = self.z_matrix(torch.tensor(3.14159/2))
+        x = self.x_matrix(torch.tensor(0.), DH_a[8])
+        T = z @ x
+        pos[8] = (T @ p0) [:3]
+        
+        z = self.z_matrix(DH_theta_alpha[13])
+        x = self.x_matrix(torch.tensor(-3.14159/2), torch.tensor(0.))
+        T = T @ z @ x
+        
+        for l in range(3):
+            z = self.z_matrix(DH_theta_alpha[14+l])
+            x = self.x_matrix(torch.tensor(0.), DH_a[9+l])
+            T = T @ z @ x
+            pos[9+l] = (T @ p0) [:3]
+            
+        
+        # Ring finger kinematics
+        z = self.z_matrix(DH_theta_alpha[17])
+        x = self.x_matrix(torch.tensor(-3.14159/2), torch.tensor(0.))
+        T = z @ x
+        
+        z = self.z_matrix(DH_theta_alpha[18])
+        x = self.x_matrix(torch.tensor(3.14159/2), DH_a[12])
+        T = T @ z @ x
+        pos[12] = (T @ p0) [:3]
+        
+        z = self.z_matrix(DH_theta_alpha[19])
+        x = self.x_matrix(torch.tensor(-3.14159/2), torch.tensor(0.))
+        T = T @ z @ x
+        
+        for l in range(3):
+            z = self.z_matrix(DH_theta_alpha[20+l])
+            x = self.x_matrix(torch.tensor(0.), DH_a[13+l])
+            T = T @ z @ x
+            pos[13+l] = (T @ p0) [:3]
+        
+        # Little finger kinematics
+        z = self.z_matrix(DH_theta_alpha[23])
+        x = self.x_matrix(torch.tensor(-3.14159/2), torch.tensor(0.))
+        T = z @ x
+        
+        z = self.z_matrix(DH_theta_alpha[24])
+        x = self.x_matrix(torch.tensor(3.14159/2), DH_a[16])
+        T = T @ z @ x
+        pos[16] = (T @ p0) [:3]
+        
+        z = self.z_matrix(DH_theta_alpha[25])
+        x = self.x_matrix(torch.tensor(-3.14159/2), torch.tensor(0.))
+        T = T @ z @ x
+        
+        for l in range(3):
+            z = self.z_matrix(DH_theta_alpha[26+l])
+            x = self.x_matrix(torch.tensor(0.), DH_a[17+l])
+            T = T @ z @ x
+            pos[17+l] = (T @ p0) [:3]
+
+        return pos
+
+    @ staticmethod
+    def z_matrix(theta, d=0):
+        """
+        Return the z matrix given the D-H parameter.
+        To guarantee the gradient calculation, we assign the value manually.
+        """
+        z = torch.eye(4)
+        z[0][0] = torch.cos(theta)
+        z[0][1] = -torch.sin(theta)
+        z[1][0] = torch.sin(theta)
+        z[1][1] = torch.cos(theta)
+        z[2][3] = d
+        return z
+
+    @ staticmethod
+    def x_matrix(alpha, a=0):
+        """
+        Return the x matrix given the D-H parameter.
+        To guarantee the gradient calculation, we assign the value manually.
+        """
+        x = torch.eye(4)
+        x[0][3] = a
+        x[1][1] = torch.cos(alpha)
+        x[1][2] = -torch.sin(alpha)
+        x[2][1] = torch.sin(alpha)
+        x[2][2] = torch.cos(alpha)
+        return x
 
 
 class ViewPoint_Estimator(nn.Module):

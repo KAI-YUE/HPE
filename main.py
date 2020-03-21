@@ -45,7 +45,8 @@ def main(mode=None, model_path=None):
         elif mode == 1:
             model = PReNet()
             load_pretrained_weights(config.pretrained_model_dir, model)
-            freeze_layers(model, [0,1,2,3,4,5,6,7,8,9,10,11])
+            model.init_finalFC(config.PCA_weight_file)
+            freeze_layers(model, [0,1,2,3,4,5,6,7,8,9,10,17])
 
         model.to(device)
 
@@ -53,7 +54,6 @@ def main(mode=None, model_path=None):
         optimizer = optim.Adam(
             params = model.parameters(),
             lr = config.learning_rate,
-            weight_decay=0.005
         )
 
         if mode == 0:
@@ -104,8 +104,7 @@ def main(mode=None, model_path=None):
     else:
         Hlo_dict = torch.load(model_path[0], map_location=device)
         Jlo_dict = torch.load(model_path[1], map_location=device)
-        Vpe_dict = torch.load(model_path[2], map_location=device)
-        PRe_dict = torch.load(model_path[3], map_location=device)
+        PRe_dict = torch.load(model_path[2], map_location=device)
 
         HLo = HLoNet()
         HLo.eval()
@@ -117,18 +116,13 @@ def main(mode=None, model_path=None):
         JLo.load_state_dict(Jlo_dict["model"], strict=False)
         JLo.to(device)
 
-        VPE = ViewPoint_Estimator()
-        VPE.load_state_dict(Vpe_dict["model"], strict=False)
-        VPE.eval()
-        VPE.to(device) 
-
         PRe = PReNet()
         PRe.eval()
         PRe.load_state_dict(PRe_dict['model'], strict=False)
         PRe.eval()
         PRe.to(device)
 
-        model_set = {"HLo":HLo, "JLo":JLo, "VPE":VPE, "PRe":PRe}
+        model_set = {"HLo":HLo, "JLo":JLo, "PRe":PRe}
         with torch.no_grad():
             Dexter_test(model_set, config.dexter_dir, config.test_output_dir, device=device)
 
