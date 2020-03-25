@@ -131,7 +131,7 @@ class PReNet(nn.Module):
             nn.ReLU())
         
         self.fc_theta1 = nn.Linear(256*8**2, 256)
-        self.fc_theta2 = nn.Linear(256, 7)
+        self.fc_theta2 = nn.Linear(256, 17)
 
         self.fc_scale1 = nn.Linear(256*8**2, 3)
         self.fc_scale2 = nn.Linear(3, 20)

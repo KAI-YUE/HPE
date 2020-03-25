@@ -145,7 +145,7 @@ def PRe_test(model, output_dir, device="cuda"):
     accumulated_error = 0
 
     # Load DAE model
-    DAE = DAE_2L(29, 7, 29)
+    DAE = DAE_2L(29, 17, 20)
     DAE.load_state_dict(torch.load(config.DAE_weight_file))
     decoder = DAE.decoder
     decoder = decoder.to(device)
@@ -245,7 +245,7 @@ def Dexter_test(model_set, input_dir, output_dir, device="cuda"):
     already_sampled = 0
 
     # Load DAE model
-    DAE = DAE_2L(29, 7, 29)
+    DAE = DAE_2L(29, 17, 20)
     DAE.load_state_dict(torch.load(config.DAE_weight_file))
     decoder = DAE.decoder
     decoder = decoder.to(device)
@@ -389,12 +389,9 @@ def Dexter_test(model_set, input_dir, output_dir, device="cuda"):
                 pred_3d_pos_trans = (a_set["R_inv"] @ pred_3d_pos_trans.T).T
                 pred_3d_pos_trans = np.vstack((np.zeros(3), pred_3d_pos_trans))
                 pred_3d_pos_trans += a_set["palm_pos"]
-                error = np.mean(np.sqrt(np.sum((pred_3d_pos_trans[fingertip_indices]-_3d_pos)**2, axis=-1)))
-                if error > error_th:
-                    continue
+                error_p = np.mean(np.sqrt(np.sum((pred_3d_pos_trans[fingertip_indices]-_3d_pos)**2, axis=-1)))
 
-                accumulated_3d_error_precise += error
-                error_precise.append(error)
+                error_precise.append(error_p)
 
                 proj_pred_3d_pos = project2plane(pred_3d_pos_trans)
                 proj_pred_3d_pos_plot = proj_pred_3d_pos
@@ -410,6 +407,8 @@ def Dexter_test(model_set, input_dir, output_dir, device="cuda"):
                 error = np.mean(np.sqrt(np.sum((pred_3d_pos_trans[fingertip_indices]-_3d_pos)**2, axis=-1)))
                 accumulated_3d_error += error
                 error_list.append(error)
+
+                accumulated_3d_error_precise += min(error_p, error)
 
                 proj_pred_3d_pos = project2plane(pred_3d_pos_trans)
                 proj_pred_3d_pos_plot = proj_pred_3d_pos

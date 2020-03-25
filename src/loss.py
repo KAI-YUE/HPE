@@ -63,8 +63,8 @@ class PReCriterion(object):
         # loss += 1/scale.shape[0] * torch.sum((networks_output["scale"] - scale)**2)
         # loss += 1/theta_alpha.shape[0] * torch.sum((networks_output["theta"] - theta_alpha)**2) 
         pos_loss = self.weights[0] * torch.mean(torch.sqrt(torch.sum((networks_output["pos"] - data["pos"])**2, dim=-1)))
-        loss += self.weights[1] * 1/data["theta_alpha"].shape[0] * torch.sum((networks_output["theta"] - data["theta_alpha"])**2)
-        loss += self.weights[2] * 1/data["R_inv"].shape[0] * torch.sum((networks_output["R_inv"] - data["R_inv"])**2)
+        # loss += self.weights[1] * 1/data["theta_alpha"].shape[0] * torch.sum((networks_output["theta"] - data["theta_alpha"])**2)
+        # loss += self.weights[2] * 1/data["R_inv"].shape[0] * torch.sum((networks_output["R_inv"] - data["R_inv"])**2)
         loss += pos_loss
 
         return dict(loss=loss, pos_loss=pos_loss)
